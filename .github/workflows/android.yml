@@ -1,0 +1,68 @@
+name: Android
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Grant execute permission for Gradle
+        run: chmod +x gradlew
+
+      - name: Build And Capture Logs
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p ci-logs
+          echo "Commit: ${GITHUB_SHA}" | tee ci-logs/context.txt
+          echo "Workflow: ${GITHUB_WORKFLOW}" | tee -a ci-logs/context.txt
+          echo "Runner: ${RUNNER_OS}" | tee -a ci-logs/context.txt
+          ./gradlew --version | tee ci-logs/gradle-version.txt
+          ./gradlew assembleDebug assembleRelease --console=plain --stacktrace --info 2>&1 | tee ci-logs/gradle-build.log
+
+      - name: Collect Diagnostic Files
+        if: always()
+        shell: bash
+        run: |
+          set -eux
+          mkdir -p ci-logs/gradle-daemon
+          find "$HOME/.gradle/daemon" -name 'daemon-*.out.log' -type f -exec cp {} ci-logs/gradle-daemon/ \; || true
+
+      - name: Upload Build Logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perdonus-vpn-logs
+          path: |
+            ci-logs/**
+            app/build/reports/**
+            app/build/outputs/logs/**
+            app/build/intermediates/merged_manifest*/**
+            app/build/tmp/**
+
+      - name: Upload APK Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perdonus-vpn-apks
+          path: |
+            app/build/outputs/apk/debug/*.apk
+            app/build/outputs/apk/release/*.apk

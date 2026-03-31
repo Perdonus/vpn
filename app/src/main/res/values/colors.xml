@@ -1,0 +1,11 @@
+<resources>
+    <color name="brand_cream">#FFF7EB</color>
+    <color name="brand_sand">#F2E4CF</color>
+    <color name="brand_teal">#0E5A5A</color>
+    <color name="brand_teal_dark">#083D3D</color>
+    <color name="brand_mint">#44BFA3</color>
+    <color name="brand_ink">#132020</color>
+    <color name="brand_ink_soft">#3A4B4B</color>
+    <color name="white">#FFFFFFFF</color>
+</resources>
+

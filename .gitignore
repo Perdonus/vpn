@@ -1,0 +1,11 @@
+*.iml
+.DS_Store
+.gradle/
+.idea/
+local.properties
+build/
+captures/
+.cxx/
+app/build/
+app/libs/libv2ray.aar
+classes.jar
