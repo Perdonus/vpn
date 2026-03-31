@@ -1,5 +1,6 @@
 import java.net.HttpURLConnection
 import java.net.URL
+import java.security.MessageDigest
 
 plugins {
     alias(libs.plugins.android.application)
@@ -61,29 +62,62 @@ android {
 }
 
 val libv2rayFile = layout.projectDirectory.file("libs/libv2ray.aar").asFile
+val libv2rayUrl = "https://github.com/2dust/AndroidLibXrayLite/releases/download/v26.3.27/libv2ray.aar"
+val libv2raySha256 = "aac45dfc31e8c85fce14641afac9a1747fc88938bcf4bcaa5de005147880baa9"
+
+fun File.sha256(): String =
+    inputStream().use { input ->
+        val digest = MessageDigest.getInstance("SHA-256")
+        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+        while (true) {
+            val read = input.read(buffer)
+            if (read <= 0) {
+                break
+            }
+            digest.update(buffer, 0, read)
+        }
+        digest.digest().joinToString("") { "%02x".format(it) }
+    }
 
 val prepareLibv2ray by tasks.registering {
     outputs.file(libv2rayFile)
     doLast {
-        if (libv2rayFile.exists() && libv2rayFile.length() > 0L) {
+        if (libv2rayFile.exists() && libv2rayFile.length() > 0L && libv2rayFile.sha256() == libv2raySha256) {
             return@doLast
         }
 
         libv2rayFile.parentFile.mkdirs()
+        val temporaryFile = File(libv2rayFile.parentFile, "${libv2rayFile.name}.part")
         val connection =
-            URL("https://github.com/2dust/AndroidLibXrayLite/releases/latest/download/libv2ray.aar")
+            URL(libv2rayUrl)
                 .openConnection() as HttpURLConnection
         connection.instanceFollowRedirects = true
         connection.setRequestProperty("User-Agent", "PerdonusVPN-Build")
         connection.connectTimeout = 20_000
         connection.readTimeout = 120_000
         connection.requestMethod = "GET"
+        connection.connect()
+
+        if (connection.responseCode !in 200..299) {
+            throw GradleException("Failed to download libv2ray.aar: HTTP ${connection.responseCode}")
+        }
 
         connection.inputStream.use { input ->
-            libv2rayFile.outputStream().use { output ->
+            temporaryFile.outputStream().use { output ->
                 input.copyTo(output)
             }
         }
+
+        val downloadedSha256 = temporaryFile.sha256()
+        if (downloadedSha256 != libv2raySha256) {
+            temporaryFile.delete()
+            throw GradleException(
+                "libv2ray.aar checksum mismatch: expected $libv2raySha256 but got $downloadedSha256",
+            )
+        }
+
+        temporaryFile.copyTo(libv2rayFile, overwrite = true)
+        temporaryFile.delete()
     }
 }
 
@@ -114,4 +148,3 @@ dependencies {
 
     debugImplementation(libs.androidx.compose.ui.tooling)
 }
-
