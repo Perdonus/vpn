@@ -57,14 +57,15 @@ internal object VpnNotificationFactory {
                 Intent(context, PerdonusVpnService::class.java).setAction(PerdonusVpnService.ACTION_STOP),
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
+        val body = buildBody(context, state)
 
         val builder =
             NotificationCompat.Builder(context, CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_notification_status)
                 .setContentTitle(buildTitle(context, state))
                 .setSubText(context.getString(R.string.app_name))
-                .setContentText(buildBody(context, state))
-                .setStyle(NotificationCompat.BigTextStyle().bigText(buildBody(context, state)))
+                .setContentText(body)
+                .setStyle(NotificationCompat.BigTextStyle().bigText(body))
                 .setOnlyAlertOnce(true)
                 .setSilent(true)
                 .setOngoing(state.isRunning)
@@ -74,7 +75,6 @@ internal object VpnNotificationFactory {
                 .setCategory(NotificationCompat.CATEGORY_SERVICE)
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-                .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
                 .setContentIntent(contentIntent)
 
         if (state.isRunning) {
@@ -107,11 +107,11 @@ internal object VpnNotificationFactory {
     ): String =
         when (state.status) {
             TunnelStatus.CONNECTED -> {
-                buildList {
-                    add(context.getString(R.string.notification_connected))
-                    state.activePingMs?.let { add("Ping ${it} ms") }
-                    state.startedAtEpochMs?.let(::formatUptime)?.let(add::add)
-                }.joinToString(separator = "  •  ")
+                val parts = mutableListOf<String>()
+                parts += context.getString(R.string.notification_connected)
+                state.activePingMs?.let { parts += "Ping ${it} ms" }
+                state.startedAtEpochMs?.let(::formatUptime)?.let(parts::add)
+                parts.joinToString(separator = "  •  ")
             }
 
             TunnelStatus.CONNECTING -> context.getString(R.string.notification_connecting)

@@ -224,7 +224,7 @@ fun MainScreen(
                     .padding(horizontal = 24.dp, bottom = 20.dp)
                     .fillMaxWidth(),
             colors =
-                ButtonDefaults.outlinedButtonColors(
+                ButtonDefaults.buttonColors(
                     containerColor = colorScheme.surface.copy(alpha = 0.84f),
                     contentColor = colorScheme.onSurface,
                 ),
