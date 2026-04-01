@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
@@ -27,6 +28,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.PowerSettingsNew
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -40,15 +42,10 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.white.vpn.ui.theme.Cloud
-import com.white.vpn.ui.theme.Cream
-import com.white.vpn.ui.theme.Ink
-import com.white.vpn.ui.theme.InkSoft
-import com.white.vpn.ui.theme.Mint
-import com.white.vpn.ui.theme.Teal
-import com.white.vpn.ui.theme.TealDark
+import com.white.vpn.R
 import com.white.vpn.vpn.TunnelStatus
 import kotlinx.coroutines.delay
 
@@ -56,9 +53,12 @@ import kotlinx.coroutines.delay
 fun MainScreen(
     state: MainUiState,
     onToggleConnection: () -> Unit,
+    onOpenChannel: () -> Unit,
 ) {
-    val isRunning = state.connection.status == TunnelStatus.CONNECTED
-    val isBusy = state.connection.status == TunnelStatus.CONNECTING || state.connection.status == TunnelStatus.STOPPING
+    val colorScheme = MaterialTheme.colorScheme
+    val status = state.connection.status
+    val isRunning = status == TunnelStatus.CONNECTED
+    val isBusy = status == TunnelStatus.CONNECTING || status == TunnelStatus.STOPPING
     val pulseTransition = rememberInfiniteTransition(label = "whitevpn-pulse")
     val pulseScale by pulseTransition.animateFloat(
         initialValue = 1f,
@@ -82,18 +82,18 @@ fun MainScreen(
         label = "whitevpn-button-scale",
     )
     val buttonTint by animateColorAsState(
-        targetValue = if (isRunning) TealDark else Ink,
+        targetValue = if (isRunning) colorScheme.onPrimary else colorScheme.onSurface,
         animationSpec = tween(500),
         label = "whitevpn-button-tint",
     )
     val coreBrush =
         if (isRunning) {
             Brush.radialGradient(
-                colors = listOf(Color(0xFFF6FFF7), Mint, Teal),
+                colors = listOf(colorScheme.surface, colorScheme.secondary, colorScheme.primary),
             )
         } else {
             Brush.radialGradient(
-                colors = listOf(Cloud, Color(0xFFF6EFE6), Color(0xFFE7D6C4)),
+                colors = listOf(colorScheme.surface, colorScheme.surfaceVariant, colorScheme.background),
             )
         }
 
@@ -104,14 +104,18 @@ fun MainScreen(
                 .background(
                     brush =
                         Brush.verticalGradient(
-                            colors = listOf(Cream, Color(0xFFF7EBDC), Color(0xFFEDE0CE)),
+                            colors = listOf(
+                                colorScheme.background,
+                                colorScheme.surface,
+                                colorScheme.surfaceVariant,
+                            ),
                         ),
                 )
                 .statusBarsPadding()
                 .navigationBarsPadding(),
-        contentAlignment = Alignment.Center,
     ) {
         Column(
+            modifier = Modifier.align(Alignment.Center),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(28.dp),
         ) {
@@ -134,7 +138,7 @@ fun MainScreen(
                             .scale(if (isRunning) pulseScale else 1f)
                             .alpha(if (isRunning) 0.22f else 0f)
                             .background(
-                                brush = Brush.radialGradient(colors = listOf(Mint, Color.Transparent)),
+                                brush = Brush.radialGradient(colors = listOf(colorScheme.primary.copy(alpha = 0.55f), Color.Transparent)),
                                 shape = CircleShape,
                             ),
                 )
@@ -143,7 +147,12 @@ fun MainScreen(
                         Modifier
                             .size(148.dp)
                             .scale(buttonScale)
-                            .shadow(30.dp, CircleShape, ambientColor = Color(0x66132020), spotColor = Color(0x33132020))
+                            .shadow(
+                                30.dp,
+                                CircleShape,
+                                ambientColor = colorScheme.primary.copy(alpha = 0.28f),
+                                spotColor = colorScheme.surfaceVariant.copy(alpha = 0.24f),
+                            )
                             .clip(CircleShape)
                             .background(coreBrush)
                             .clickable(enabled = !isBusy, onClick = onToggleConnection),
@@ -163,6 +172,16 @@ fun MainScreen(
                 }
             }
         }
+
+        OutlinedButton(
+            onClick = onOpenChannel,
+            modifier =
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 20.dp),
+        ) {
+            Text(text = stringResource(R.string.channel_subscribe))
+        }
     }
 }
 
@@ -180,7 +199,7 @@ private fun ConnectionMetrics(
                 text = uptime,
                 style = MaterialTheme.typography.headlineLarge,
                 fontWeight = FontWeight.Bold,
-                color = Ink,
+                color = MaterialTheme.colorScheme.onBackground,
             )
         }
         ping?.let {
@@ -189,7 +208,7 @@ private fun ConnectionMetrics(
                 modifier = Modifier.widthIn(min = 72.dp),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Medium,
-                color = InkSoft,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }

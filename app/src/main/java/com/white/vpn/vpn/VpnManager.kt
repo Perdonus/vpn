@@ -28,6 +28,14 @@ object VpnManager {
             )
             return prepareIntent
         }
+        publish(
+            _state.value.copy(
+                status = TunnelStatus.CONNECTING,
+                message = "Connecting",
+                permissionIntent = null,
+            ),
+            context,
+        )
         ContextCompat.startForegroundService(
             context,
             Intent(context, PerdonusVpnService::class.java).apply {
@@ -39,6 +47,14 @@ object VpnManager {
     }
 
     fun stop(context: Context) {
+        publish(
+            _state.value.copy(
+                status = TunnelStatus.STOPPING,
+                message = "Stopping",
+                permissionIntent = null,
+            ),
+            context,
+        )
         ContextCompat.startForegroundService(
             context,
             Intent(context, PerdonusVpnService::class.java).setAction(PerdonusVpnService.ACTION_STOP),

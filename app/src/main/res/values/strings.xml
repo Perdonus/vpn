@@ -8,7 +8,12 @@
     <string name="save">Сохранить</string>
     <string name="settings">Настройки</string>
     <string name="widget_toggle">WhiteVPN</string>
+    <string name="widget_state_off">Выключено</string>
+    <string name="widget_state_on">Включено</string>
+    <string name="widget_state_connecting">Подключение</string>
+    <string name="widget_state_stopping">Отключение</string>
     <string name="notification_channel_name">WhiteVPN</string>
     <string name="notification_stop">Остановить</string>
     <string name="notification_connecting">Подключение…</string>
+    <string name="channel_subscribe">Подписаться на канал</string>
 </resources>

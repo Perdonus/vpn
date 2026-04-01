@@ -1,6 +1,7 @@
 package com.white.vpn
 
 import android.content.Intent
+import android.net.Uri
 import android.net.VpnService
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -59,6 +60,9 @@ class MainActivity : ComponentActivity() {
                             permissionLauncher.launch(permissionIntent)
                         }
                     },
+                    onOpenChannel = {
+                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(CHANNEL_URL)))
+                    },
                 )
             }
         }
@@ -71,5 +75,6 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         const val EXTRA_REQUEST_VPN_PERMISSION = "request_vpn_permission"
+        private const val CHANNEL_URL = "https://t.me/plugin_ai"
     }
 }

@@ -38,7 +38,7 @@ data class VpnRuntimeState(
     val permissionIntent: Intent? = null,
 ) {
     val isRunning: Boolean
-        get() = status == TunnelStatus.CONNECTED || status == TunnelStatus.CONNECTING
+        get() = status == TunnelStatus.CONNECTED || status == TunnelStatus.CONNECTING || status == TunnelStatus.STOPPING
 }
 
 interface TunnelProfileStore {

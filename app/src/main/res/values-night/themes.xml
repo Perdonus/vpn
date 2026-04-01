@@ -2,11 +2,11 @@
     <style name="Theme.WhiteVpn" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@color/brand_cream</item>
-        <item name="android:windowLightStatusBar">true</item>
-        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
         <item name="android:windowBackground">@color/brand_cream</item>
         <item name="colorPrimary">@color/brand_teal</item>
-        <item name="colorOnPrimary">@color/white</item>
+        <item name="colorOnPrimary">@color/brand_ink</item>
         <item name="colorSecondary">@color/brand_mint</item>
         <item name="android:windowFullscreen">false</item>
         <item name="android:forceDarkAllowed" tools:targetApi="q">false</item>
