@@ -49,6 +49,35 @@ jobs:
           mkdir -p ci-logs/gradle-daemon
           find "$HOME/.gradle/daemon" -name 'daemon-*.out.log' -type f -exec cp {} ci-logs/gradle-daemon/ \; || true
 
+      - name: Summarize Build Failure
+        if: failure()
+        shell: bash
+        run: |
+          set -euo pipefail
+          summary_file="ci-logs/gradle-error-summary.txt"
+          mkdir -p ci-logs
+
+          if [[ ! -f ci-logs/gradle-build.log ]]; then
+            echo "Gradle build log was not captured." > "$summary_file"
+          elif grep -En '(^e: file:|^e: |^FAILURE: Build failed|^\* What went wrong:|^Execution failed|^A failure occurred|^> )' ci-logs/gradle-build.log > "$summary_file"; then
+            true
+          else
+            tail -n 200 ci-logs/gradle-build.log > "$summary_file"
+          fi
+
+          first_error="$(head -n 1 "$summary_file" || true)"
+          if [[ -n "$first_error" ]]; then
+            echo "::error title=Gradle build failed::$first_error"
+          fi
+
+          {
+            echo "## Build Failure Summary"
+            echo
+            echo '```text'
+            cat "$summary_file"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload Build Logs
         if: always()
         uses: actions/upload-artifact@v6
