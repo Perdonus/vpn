@@ -116,7 +116,9 @@ fun MainScreen(
         }
     val detailLabel =
         when (status) {
-            TunnelStatus.CONNECTED -> state.connection.activePingMs?.let { "$it ms" } ?: stringResource(R.string.status_checking_ping)
+            TunnelStatus.CONNECTED ->
+                state.connection.activePingMs?.let { stringResource(R.string.status_ping_value, it) }
+                    ?: stringResource(R.string.status_ping_unknown)
             TunnelStatus.CONNECTING -> stringResource(R.string.status_connecting)
             TunnelStatus.STOPPING -> stringResource(R.string.status_stopping)
             TunnelStatus.PERMISSION_REQUIRED -> stringResource(R.string.status_permission_required)
@@ -241,18 +243,12 @@ private fun ConnectedButtonContent(
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
         modifier = Modifier.padding(horizontal = 18.dp),
     ) {
-        Icon(
-            imageVector = Icons.Rounded.PowerSettingsNew,
-            contentDescription = null,
-            modifier = Modifier.size(20.dp),
-            tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.82f),
-        )
         Text(
             text = uptime.ifBlank { "00:00:00" },
-            style = MaterialTheme.typography.headlineMedium,
+            style = MaterialTheme.typography.headlineLarge,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onPrimary,
             textAlign = TextAlign.Center,

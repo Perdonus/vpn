@@ -35,7 +35,6 @@ class PerdonusVpnService : VpnService() {
     private var startedAtEpochMs: Long? = null
     private var isAutoMode: Boolean = true
 
-    private var notificationJob: Job? = null
     private var autoPingJob: Job? = null
     private var pingRefreshJob: Job? = null
 
@@ -56,7 +55,6 @@ class PerdonusVpnService : VpnService() {
     }
 
     override fun onDestroy() {
-        notificationJob?.cancel()
         autoPingJob?.cancel()
         pingRefreshJob?.cancel()
         stopCoreOnly()
@@ -168,7 +166,7 @@ class PerdonusVpnService : VpnService() {
             pingMs = activePingMs,
             startedAt = startedAtEpochMs,
         )
-        startNotificationTicker()
+        updateNotificationNow()
         startAutoPingLoop(dependencies)
         refreshActivePing(dependencies, profile)
     }
@@ -179,30 +177,12 @@ class PerdonusVpnService : VpnService() {
             .minByOrNull { it.lastPingMs ?: Long.MAX_VALUE }
             ?: profiles.first()
 
-    private fun startNotificationTicker() {
-        notificationJob?.cancel()
-        notificationJob = serviceScope.launch {
-            while (isActive && core.isRunning) {
-                publishState(
-                    TunnelStatus.CONNECTED,
-                    activeProfile = activeProfile,
-                    pingMs = activePingMs,
-                    startedAt = startedAtEpochMs,
-                )
-                updateNotificationNow()
-                delay(1000L)
-            }
-        }
-    }
-
     private fun startAutoPingLoop(dependencies: VpnDependencies) {
         autoPingJob?.cancel()
         if (!isAutoMode) return
         autoPingJob = serviceScope.launch {
-            var isFirstIteration = true
             while (isActive && core.isRunning) {
-                delay(if (isFirstIteration) 5_000L else 60_000L)
-                isFirstIteration = false
+                delay(60_000L)
                 val profiles = dependencies.profileStore.getProfiles()
                 if (profiles.isEmpty()) continue
                 val current = activeProfile ?: continue
@@ -300,8 +280,6 @@ class PerdonusVpnService : VpnService() {
         message: String,
         stopSelfAfter: Boolean,
     ) {
-        notificationJob?.cancel()
-        notificationJob = null
         autoPingJob?.cancel()
         autoPingJob = null
         pingRefreshJob?.cancel()

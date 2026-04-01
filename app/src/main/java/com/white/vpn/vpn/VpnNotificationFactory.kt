@@ -109,7 +109,7 @@ internal object VpnNotificationFactory {
             TunnelStatus.CONNECTED -> {
                 val parts = mutableListOf<String>()
                 parts += context.getString(R.string.notification_connected)
-                state.activePingMs?.let { parts += "Ping ${it} ms" }
+                state.activePingMs?.let { parts += context.getString(R.string.status_ping_value, it) }
                 state.startedAtEpochMs?.let(::formatUptime)?.let(parts::add)
                 parts.joinToString(separator = "  •  ")
             }
