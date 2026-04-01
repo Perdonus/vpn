@@ -8,6 +8,9 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
+val ciRunNumber = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull()?.coerceAtLeast(1) ?: 1
+val stableDebugKeystore = rootProject.layout.projectDirectory.file("keystore/whitevpn-debug.keystore").asFile
+
 android {
     namespace = "com.white.vpn"
     compileSdk = 35
@@ -16,14 +19,27 @@ android {
         applicationId = "com.white.vpn"
         minSdk = 24
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = ciRunNumber
+        versionName = "0.1.$ciRunNumber"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }
 
+    signingConfigs {
+        create("stableDebug") {
+            storeFile = stableDebugKeystore
+            storePassword = "android"
+            keyAlias = "whitevpn-debug"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("stableDebug")
+        }
+
         release {
             isMinifyEnabled = false
             proguardFiles(
