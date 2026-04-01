@@ -119,9 +119,9 @@ fun MainScreen(
             TunnelStatus.CONNECTED ->
                 state.connection.activePingMs?.let { stringResource(R.string.status_ping_value, it) }
                     ?: stringResource(R.string.status_ping_unknown)
-            TunnelStatus.CONNECTING -> stringResource(R.string.status_connecting)
-            TunnelStatus.STOPPING -> stringResource(R.string.status_stopping)
-            TunnelStatus.PERMISSION_REQUIRED -> stringResource(R.string.status_permission_required)
+            TunnelStatus.CONNECTING -> state.connection.message ?: stringResource(R.string.status_connecting)
+            TunnelStatus.STOPPING -> state.connection.message ?: stringResource(R.string.status_stopping)
+            TunnelStatus.PERMISSION_REQUIRED -> state.connection.message ?: stringResource(R.string.status_permission_required)
             TunnelStatus.ERROR -> state.message ?: stringResource(R.string.status_error_generic)
             TunnelStatus.IDLE -> ""
         }
@@ -248,14 +248,14 @@ private fun ConnectedButtonContent(
     ) {
         Text(
             text = uptime.ifBlank { "00:00:00" },
-            style = MaterialTheme.typography.headlineLarge,
+            style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onPrimary,
             textAlign = TextAlign.Center,
         )
         Text(
             text = detail,
-            style = MaterialTheme.typography.labelLarge,
+            style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.88f),
             textAlign = TextAlign.Center,
         )

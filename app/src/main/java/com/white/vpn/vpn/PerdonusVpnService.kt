@@ -37,6 +37,7 @@ class PerdonusVpnService : VpnService() {
 
     private var autoPingJob: Job? = null
     private var pingRefreshJob: Job? = null
+    private var notificationJob: Job? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -57,6 +58,7 @@ class PerdonusVpnService : VpnService() {
     override fun onDestroy() {
         autoPingJob?.cancel()
         pingRefreshJob?.cancel()
+        notificationJob?.cancel()
         stopCoreOnly()
         activeProfile = null
         activePingMs = null
@@ -102,7 +104,12 @@ class PerdonusVpnService : VpnService() {
                 return@withLock
             }
 
-            publishState(TunnelStatus.CONNECTING, message = "Connecting")
+            val selection = dependencies.profileStore.getSelection()
+            isAutoMode = selection.mode == TunnelSelectionMode.AUTO
+            publishState(
+                TunnelStatus.CONNECTING,
+                message = if (isAutoMode) getString(com.white.vpn.R.string.status_selecting_server) else getString(com.white.vpn.R.string.status_connecting),
+            )
             VpnNotificationFactory.ensureChannel(this)
             ServiceCompat.startForeground(
                 this,
@@ -110,9 +117,6 @@ class PerdonusVpnService : VpnService() {
                 VpnNotificationFactory.build(this, VpnManager.stateSnapshot()),
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE,
             )
-
-            val selection = dependencies.profileStore.getSelection()
-            isAutoMode = selection.mode == TunnelSelectionMode.AUTO
             val profiles = dependencies.profileStore.getProfiles()
             if (profiles.isEmpty()) {
                 publishState(TunnelStatus.ERROR, message = "No VPN servers available")
@@ -120,14 +124,23 @@ class PerdonusVpnService : VpnService() {
                 return@withLock
             }
 
-            val targetProfile = when {
-                requestedProfileId != null -> profiles.firstOrNull { it.id == requestedProfileId }
-                isAutoMode -> chooseInitialProfile(profiles)
-                else -> profiles.firstOrNull { it.id == selection.profileId }
-            } ?: profiles.minByOrNull { it.lastPingMs ?: Long.MAX_VALUE } ?: profiles.first()
+            val (targetProfile, initialPingMs) =
+                when {
+                    requestedProfileId != null ->
+                        (profiles.firstOrNull { it.id == requestedProfileId }
+                            ?: profiles.minByOrNull { it.lastPingMs ?: Long.MAX_VALUE }
+                            ?: profiles.first()) to null
+
+                    isAutoMode -> chooseInitialProfile(dependencies, profiles)
+
+                    else ->
+                        (profiles.firstOrNull { it.id == selection.profileId }
+                            ?: profiles.minByOrNull { it.lastPingMs ?: Long.MAX_VALUE }
+                            ?: profiles.first()) to null
+                }
 
             runCatching {
-                startWithProfile(dependencies, targetProfile)
+                startWithProfile(dependencies, targetProfile, initialPingMs)
             }.onFailure { error ->
                 publishState(TunnelStatus.ERROR, message = error.message ?: "Failed to start VPN")
                 cleanupStoppedState(error.message ?: "Failed to start VPN", stopSelfAfter = true)
@@ -138,6 +151,7 @@ class PerdonusVpnService : VpnService() {
     private suspend fun startWithProfile(
         dependencies: VpnDependencies,
         profile: TunnelProfile,
+        initialPingMs: Long? = null,
     ) {
         stopCoreOnly()
 
@@ -157,7 +171,7 @@ class PerdonusVpnService : VpnService() {
         core.start(runtimeConfig, tunFd)
         activeProfile = profile
         startedAtEpochMs = System.currentTimeMillis()
-        activePingMs = profile.lastPingMs
+        activePingMs = initialPingMs ?: profile.lastPingMs
         dependencies.profileStore.setActiveProfileId(profile.id)
 
         publishState(
@@ -167,15 +181,34 @@ class PerdonusVpnService : VpnService() {
             startedAt = startedAtEpochMs,
         )
         updateNotificationNow()
+        startNotificationTicker()
         startAutoPingLoop(dependencies)
-        refreshActivePing(dependencies, profile)
+        if (initialPingMs == null) {
+            refreshActivePing(dependencies, profile)
+        }
     }
 
-    private fun chooseInitialProfile(profiles: List<TunnelProfile>): TunnelProfile =
-        profiles
-            .filter { it.lastPingMs != null && it.lastPingMs >= 0L }
-            .minByOrNull { it.lastPingMs ?: Long.MAX_VALUE }
-            ?: profiles.first()
+    private suspend fun chooseInitialProfile(
+        dependencies: VpnDependencies,
+        profiles: List<TunnelProfile>,
+    ): Pair<TunnelProfile, Long?> {
+        publishState(TunnelStatus.CONNECTING, message = getString(com.white.vpn.R.string.status_selecting_server))
+        updateNotificationNow()
+        val measured = measureAllPings(dependencies, profiles)
+        val bestMeasured =
+            measured
+                .filterValues { it != null && it >= 0L }
+                .minByOrNull { it.value ?: Long.MAX_VALUE }
+        if (bestMeasured != null) {
+            return bestMeasured.key to bestMeasured.value
+        }
+        val fallback =
+            profiles
+                .filter { it.lastPingMs != null && it.lastPingMs >= 0L }
+                .minByOrNull { it.lastPingMs ?: Long.MAX_VALUE }
+                ?: profiles.first()
+        return fallback to fallback.lastPingMs
+    }
 
     private fun startAutoPingLoop(dependencies: VpnDependencies) {
         autoPingJob?.cancel()
@@ -192,10 +225,11 @@ class PerdonusVpnService : VpnService() {
                     .minByOrNull { it.value ?: Long.MAX_VALUE }
                     ?.key
                     ?: continue
+                val bestPing = measured[bestProfile]
                 activePingMs = measured[current] ?: activePingMs
                 if (bestProfile.id != current.id) {
                     operationMutex.withLock {
-                        startWithProfile(dependencies, bestProfile)
+                        startWithProfile(dependencies, bestProfile, bestPing)
                     }
                 } else {
                     publishState(
@@ -271,6 +305,8 @@ class PerdonusVpnService : VpnService() {
     private fun stopCoreOnly() {
         pingRefreshJob?.cancel()
         pingRefreshJob = null
+        notificationJob?.cancel()
+        notificationJob = null
         runCatching { core.stop() }
         runCatching { tunInterface?.close() }
         tunInterface = null
@@ -316,6 +352,16 @@ class PerdonusVpnService : VpnService() {
             ),
             this,
         )
+    }
+
+    private fun startNotificationTicker() {
+        notificationJob?.cancel()
+        notificationJob = serviceScope.launch {
+            while (isActive && core.isRunning && startedAtEpochMs != null) {
+                updateNotificationNow()
+                delay(1_000L)
+            }
+        }
     }
 
     private fun updateNotificationNow() {

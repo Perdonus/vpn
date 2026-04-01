@@ -14,16 +14,21 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.white.vpn.ui.main.MainUiState
 import com.white.vpn.ui.main.MainScreen
 import com.white.vpn.ui.main.MainViewModel
 import com.white.vpn.ui.theme.WhiteVpnTheme
+import com.white.vpn.vpn.TunnelStatus
 import com.white.vpn.vpn.VpnManager
+import com.white.vpn.vpn.VpnRuntimeState
 
 class MainActivity : ComponentActivity() {
+    private var pendingProfileId: String? = null
+    private var pendingToggleAfterNotificationPermission = false
+
     private val viewModel by viewModels<MainViewModel> {
         val container = (application as VpnApplication).appContainer
         viewModelFactory {
@@ -33,49 +38,52 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private val notificationPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (granted && pendingToggleAfterNotificationPermission) {
+                val profileId = pendingProfileId
+                pendingToggleAfterNotificationPermission = false
+                pendingProfileId = null
+                continueConnectionFlow(profileId)
+            } else if (pendingToggleAfterNotificationPermission) {
+                pendingToggleAfterNotificationPermission = false
+                pendingProfileId = null
+                VpnManager.publish(
+                    VpnRuntimeState(
+                        status = TunnelStatus.PERMISSION_REQUIRED,
+                        message = getString(R.string.status_notification_permission_required),
+                    ),
+                    this,
+                )
+            }
+        }
+
+    private val permissionLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+            if (VpnService.prepare(this) == null) {
+                VpnManager.requestStart(this, pendingProfileId)
+            }
+        }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
         val requestPermissionOnStart = intent.getBooleanExtra(EXTRA_REQUEST_VPN_PERMISSION, false)
-        val notificationPermissionLauncher =
-            registerForActivityResult(ActivityResultContracts.RequestPermission()) {}
-        val permissionLauncher =
-            registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-                if (VpnService.prepare(this) == null) {
-                    VpnManager.requestStart(this, viewModel.uiState.value.manualRequestedProfileId)
-                }
-            }
-        val requestNotificationPermissionIfNeeded = {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-            ) {
-                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-            }
-        }
 
         setContent {
             WhiteVpnTheme {
                 val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-                val context = LocalContext.current
-
-                LaunchedEffect(Unit) {
-                    requestNotificationPermissionIfNeeded()
-                }
 
                 LaunchedEffect(requestPermissionOnStart) {
                     if (!requestPermissionOnStart) return@LaunchedEffect
-                    VpnService.prepare(context)?.let(permissionLauncher::launch)
+                    beginConnectionFlow(uiState)
                 }
 
                 MainScreen(
                     state = uiState,
                     onToggleConnection = {
-                        requestNotificationPermissionIfNeeded()
-                        val permissionIntent = VpnManager.toggle(context, uiState.manualRequestedProfileId)
-                        if (permissionIntent != null) {
-                            permissionLauncher.launch(permissionIntent)
-                        }
+                        beginConnectionFlow(uiState)
                     },
                     onOpenChannel = {
                         startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(CHANNEL_URL)))
@@ -88,7 +96,36 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        if (intent.getBooleanExtra(EXTRA_REQUEST_VPN_PERMISSION, false)) {
+            beginConnectionFlow(viewModel.uiState.value)
+        }
     }
+
+    private fun beginConnectionFlow(uiState: MainUiState) {
+        pendingProfileId = uiState.manualRequestedProfileId
+        if (uiState.connection.isRunning) {
+            continueConnectionFlow(uiState.manualRequestedProfileId)
+            return
+        }
+        if (needsNotificationPermission()) {
+            pendingToggleAfterNotificationPermission = true
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            return
+        }
+        continueConnectionFlow(uiState.manualRequestedProfileId)
+    }
+
+    private fun continueConnectionFlow(profileId: String?) {
+        pendingProfileId = profileId
+        val permissionIntent = VpnManager.toggle(this, profileId)
+        if (permissionIntent != null) {
+            permissionLauncher.launch(permissionIntent)
+        }
+    }
+
+    private fun needsNotificationPermission(): Boolean =
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
 
     companion object {
         const val EXTRA_REQUEST_VPN_PERMISSION = "request_vpn_permission"

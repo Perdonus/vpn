@@ -21,7 +21,7 @@ internal object VpnNotificationFactory {
         val channel = NotificationChannel(
             CHANNEL_ID,
             context.getString(R.string.notification_channel_name),
-            NotificationManager.IMPORTANCE_DEFAULT,
+            NotificationManager.IMPORTANCE_LOW,
         ).apply {
             description = "WhiteVPN status"
             enableLights(false)
@@ -75,6 +75,7 @@ internal object VpnNotificationFactory {
                 .setCategory(NotificationCompat.CATEGORY_SERVICE)
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+                .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
                 .setContentIntent(contentIntent)
 
         if (state.isRunning) {
@@ -93,9 +94,9 @@ internal object VpnNotificationFactory {
         state: VpnRuntimeState,
     ): String =
         when (state.status) {
-            TunnelStatus.CONNECTING -> context.getString(R.string.notification_connecting)
-            TunnelStatus.STOPPING -> context.getString(R.string.notification_stopping)
-            TunnelStatus.PERMISSION_REQUIRED -> context.getString(R.string.notification_permission_required)
+            TunnelStatus.CONNECTING -> state.message ?: context.getString(R.string.notification_connecting)
+            TunnelStatus.STOPPING -> state.message ?: context.getString(R.string.notification_stopping)
+            TunnelStatus.PERMISSION_REQUIRED -> state.message ?: context.getString(R.string.notification_permission_required)
             TunnelStatus.CONNECTED -> state.activeProfileName ?: context.getString(R.string.app_name)
             TunnelStatus.ERROR -> state.message ?: context.getString(R.string.status_error_generic)
             TunnelStatus.IDLE -> context.getString(R.string.app_name)
@@ -108,15 +109,15 @@ internal object VpnNotificationFactory {
         when (state.status) {
             TunnelStatus.CONNECTED -> {
                 val parts = mutableListOf<String>()
-                parts += context.getString(R.string.notification_connected)
-                state.activePingMs?.let { parts += context.getString(R.string.status_ping_value, it) }
-                state.startedAtEpochMs?.let(::formatUptime)?.let(parts::add)
+                parts += state.activePingMs?.let { context.getString(R.string.status_ping_value, it) }
+                    ?: context.getString(R.string.status_ping_unknown)
+                parts += state.startedAtEpochMs?.let(::formatUptime) ?: "00:00:00"
                 parts.joinToString(separator = "  •  ")
             }
 
-            TunnelStatus.CONNECTING -> context.getString(R.string.notification_connecting)
-            TunnelStatus.STOPPING -> context.getString(R.string.notification_stopping)
-            TunnelStatus.PERMISSION_REQUIRED -> context.getString(R.string.notification_permission_required)
+            TunnelStatus.CONNECTING -> state.message ?: context.getString(R.string.notification_connecting)
+            TunnelStatus.STOPPING -> state.message ?: context.getString(R.string.notification_stopping)
+            TunnelStatus.PERMISSION_REQUIRED -> state.message ?: context.getString(R.string.notification_permission_required)
             TunnelStatus.ERROR -> state.message ?: context.getString(R.string.status_error_generic)
             TunnelStatus.IDLE -> state.message ?: context.getString(R.string.app_name)
         }

@@ -12,6 +12,7 @@
     <string name="widget_state_on">Включено</string>
     <string name="widget_state_connecting">Подключение</string>
     <string name="widget_state_stopping">Отключение</string>
+    <string name="widget_state_selecting_server">Подбираем сервер</string>
     <string name="notification_channel_name">WhiteVPN</string>
     <string name="notification_stop">Остановить</string>
     <string name="notification_connecting">Подключение…</string>
@@ -22,8 +23,10 @@
     <string name="status_checking_ping">Проверяем сеть</string>
     <string name="status_ping_value">Ping %1$d ms</string>
     <string name="status_ping_unknown">Ping --</string>
+    <string name="status_selecting_server">Подбираем сервер</string>
     <string name="status_connecting">Подключение…</string>
     <string name="status_stopping">Отключение…</string>
     <string name="status_permission_required">Разреши VPN</string>
+    <string name="status_notification_permission_required">Разреши уведомления</string>
     <string name="status_error_generic">Ошибка</string>
 </resources>

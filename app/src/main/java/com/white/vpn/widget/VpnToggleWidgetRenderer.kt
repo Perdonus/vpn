@@ -32,9 +32,17 @@ internal object VpnToggleWidgetRenderer {
                         ?: context.getString(R.string.status_ping_unknown)) to
                         R.drawable.widget_toggle_background_active
                 TunnelStatus.CONNECTING ->
-                    context.getString(R.string.widget_state_connecting) to R.drawable.widget_toggle_background_pending
+                    (state.message
+                        ?: context.getString(R.string.widget_state_connecting)) to R.drawable.widget_toggle_background_pending
                 TunnelStatus.STOPPING ->
-                    context.getString(R.string.widget_state_stopping) to R.drawable.widget_toggle_background_pending
+                    (state.message
+                        ?: context.getString(R.string.widget_state_stopping)) to R.drawable.widget_toggle_background_pending
+                TunnelStatus.PERMISSION_REQUIRED ->
+                    context.getString(R.string.status_notification_permission_required) to
+                        R.drawable.widget_toggle_background_pending
+                TunnelStatus.ERROR ->
+                    (state.message ?: context.getString(R.string.status_error_generic)) to
+                        R.drawable.widget_toggle_background_pending
                 else ->
                     context.getString(R.string.widget_state_off) to R.drawable.widget_toggle_background
             }

@@ -20,6 +20,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
+        android:fontFamily="@font/unbounded_semibold"
         android:gravity="center"
         android:maxLines="2"
         android:text="@string/widget_state_off"
