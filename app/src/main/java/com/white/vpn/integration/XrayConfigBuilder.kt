@@ -17,10 +17,37 @@ object XrayConfigBuilder {
     ): String {
         val root =
             buildJsonObject {
+                put("stats", buildJsonObject {})
                 put(
                     "log",
                     buildJsonObject {
                         put("loglevel", JsonPrimitive("warning"))
+                    },
+                )
+                put(
+                    "policy",
+                    buildJsonObject {
+                        put(
+                            "levels",
+                            buildJsonObject {
+                                put(
+                                    "8",
+                                    buildJsonObject {
+                                        put("handshake", JsonPrimitive(4))
+                                        put("connIdle", JsonPrimitive(300))
+                                        put("uplinkOnly", JsonPrimitive(1))
+                                        put("downlinkOnly", JsonPrimitive(1))
+                                    },
+                                )
+                            },
+                        )
+                        put(
+                            "system",
+                            buildJsonObject {
+                                put("statsOutboundUplink", JsonPrimitive(true))
+                                put("statsOutboundDownlink", JsonPrimitive(true))
+                            },
+                        )
                     },
                 )
                 put("inbounds", buildInbounds(includeTun))

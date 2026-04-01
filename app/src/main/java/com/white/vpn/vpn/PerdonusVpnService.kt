@@ -3,7 +3,6 @@ package com.white.vpn.vpn
 import android.app.Service
 import android.content.Intent
 import android.content.pm.ServiceInfo
-import android.net.TrafficStats
 import android.net.VpnService
 import android.os.IBinder
 import android.os.ParcelFileDescriptor
@@ -38,9 +37,8 @@ class PerdonusVpnService : VpnService() {
     private var activePingMs: Long? = null
     private var startedAtEpochMs: Long? = null
     private var isAutoMode: Boolean = true
-    private var sessionBaseRxBytes: Long = 0L
-    private var sessionBaseTxBytes: Long = 0L
-    private var trafficSupported: Boolean = false
+    private var sessionAccumulatedRxBytes: Long = 0L
+    private var sessionAccumulatedTxBytes: Long = 0L
     private var consecutiveProbeFailures: Int = 0
 
     private var autoSelectionJob: Job? = null
@@ -197,6 +195,11 @@ class PerdonusVpnService : VpnService() {
                 .addAddress("fdfe:dcba:9876::2", 126)
                 .addRoute("0.0.0.0", 0)
                 .addRoute("::", 0)
+
+        // Keep the app's own sockets out of the tunnel to avoid proxy loops.
+        runCatching {
+            builder.addDisallowedApplication(packageName)
+        }
 
         dependencies.dnsServers().forEach(builder::addDnsServer)
 
@@ -430,6 +433,7 @@ class PerdonusVpnService : VpnService() {
         pingRefreshJob = null
         notificationJob?.cancel()
         notificationJob = null
+        collectCoreTrafficSnapshot()
         runCatching { core.stop() }
         runCatching { tunInterface?.close() }
         tunInterface = null
@@ -457,35 +461,36 @@ class PerdonusVpnService : VpnService() {
         activePingMs = null
         startedAtEpochMs = null
         isAutoMode = true
-        sessionBaseRxBytes = 0L
-        sessionBaseTxBytes = 0L
-        trafficSupported = false
+        sessionAccumulatedRxBytes = 0L
+        sessionAccumulatedTxBytes = 0L
         consecutiveProbeFailures = 0
     }
 
     private fun resetTrafficSession() {
-        val uid = applicationInfo.uid
-        val rxBytes = TrafficStats.getUidRxBytes(uid)
-        val txBytes = TrafficStats.getUidTxBytes(uid)
-        trafficSupported =
-            rxBytes != TrafficStats.UNSUPPORTED.toLong() &&
-                txBytes != TrafficStats.UNSUPPORTED.toLong()
-        sessionBaseRxBytes = if (trafficSupported) rxBytes else 0L
-        sessionBaseTxBytes = if (trafficSupported) txBytes else 0L
+        sessionAccumulatedRxBytes = 0L
+        sessionAccumulatedTxBytes = 0L
+    }
+
+    private fun collectCoreTrafficSnapshot() {
+        if (!core.isRunning) return
+        sessionAccumulatedRxBytes += queryCoreTraffic(TrafficDirection.DOWNLINK)
+        sessionAccumulatedTxBytes += queryCoreTraffic(TrafficDirection.UPLINK)
+    }
+
+    private fun queryCoreTraffic(direction: TrafficDirection): Long {
+        return TRAFFIC_OUTBOUND_TAGS.sumOf { tag ->
+            runCatching {
+                core.queryStats(tag, direction.wireValue)
+            }.getOrDefault(0L).coerceAtLeast(0L)
+        }
     }
 
     private fun currentSessionRxBytes(): Long {
-        if (!trafficSupported) return 0L
-        val current = TrafficStats.getUidRxBytes(applicationInfo.uid)
-        if (current == TrafficStats.UNSUPPORTED.toLong()) return 0L
-        return (current - sessionBaseRxBytes).coerceAtLeast(0L)
+        return sessionAccumulatedRxBytes.coerceAtLeast(0L)
     }
 
     private fun currentSessionTxBytes(): Long {
-        if (!trafficSupported) return 0L
-        val current = TrafficStats.getUidTxBytes(applicationInfo.uid)
-        if (current == TrafficStats.UNSUPPORTED.toLong()) return 0L
-        return (current - sessionBaseTxBytes).coerceAtLeast(0L)
+        return sessionAccumulatedTxBytes.coerceAtLeast(0L)
     }
 
     private fun publishState(
@@ -520,6 +525,7 @@ class PerdonusVpnService : VpnService() {
         notificationJob =
             serviceScope.launch {
                 while (isActive && core.isRunning && startedAtEpochMs != null) {
+                    collectCoreTrafficSnapshot()
                     publishState(
                         TunnelStatus.CONNECTED,
                         activeProfile = activeProfile,
@@ -580,6 +586,7 @@ class PerdonusVpnService : VpnService() {
         private const val VALIDATION_TIME_BUDGET_MS = 20_000L
         private const val MAX_CONSECUTIVE_PROBE_FAILURES = 2
         private const val YOUTUBE_VALIDATION_URL = "https://www.youtube.com/robots.txt"
+        private val TRAFFIC_OUTBOUND_TAGS = listOf("proxy", "direct")
 
         fun start(
             context: android.content.Context,
@@ -593,5 +600,12 @@ class PerdonusVpnService : VpnService() {
                 },
             )
         }
+    }
+
+    private enum class TrafficDirection(
+        val wireValue: String,
+    ) {
+        UPLINK("uplink"),
+        DOWNLINK("downlink"),
     }
 }
