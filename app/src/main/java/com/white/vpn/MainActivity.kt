@@ -1,8 +1,11 @@
 package com.white.vpn
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.net.VpnService
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -35,17 +38,30 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         val requestPermissionOnStart = intent.getBooleanExtra(EXTRA_REQUEST_VPN_PERMISSION, false)
+        val notificationPermissionLauncher =
+            registerForActivityResult(ActivityResultContracts.RequestPermission()) {}
         val permissionLauncher =
             registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
                 if (VpnService.prepare(this) == null) {
                     VpnManager.requestStart(this, viewModel.uiState.value.manualRequestedProfileId)
                 }
             }
+        val requestNotificationPermissionIfNeeded = {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+            ) {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
 
         setContent {
             WhiteVpnTheme {
                 val uiState by viewModel.uiState.collectAsStateWithLifecycle()
                 val context = LocalContext.current
+
+                LaunchedEffect(Unit) {
+                    requestNotificationPermissionIfNeeded()
+                }
 
                 LaunchedEffect(requestPermissionOnStart) {
                     if (!requestPermissionOnStart) return@LaunchedEffect
@@ -55,6 +71,7 @@ class MainActivity : ComponentActivity() {
                 MainScreen(
                     state = uiState,
                     onToggleConnection = {
+                        requestNotificationPermissionIfNeeded()
                         val permissionIntent = VpnManager.toggle(context, uiState.manualRequestedProfileId)
                         if (permissionIntent != null) {
                             permissionLauncher.launch(permissionIntent)

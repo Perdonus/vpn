@@ -9,6 +9,7 @@ import android.content.Intent
 import android.graphics.Color
 import android.os.Build
 import androidx.core.app.NotificationCompat
+import com.white.vpn.R
 
 internal object VpnNotificationFactory {
     const val CHANNEL_ID = "white_vpn_channel"
@@ -19,8 +20,8 @@ internal object VpnNotificationFactory {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val channel = NotificationChannel(
             CHANNEL_ID,
-            "WhiteVPN",
-            NotificationManager.IMPORTANCE_LOW,
+            context.getString(R.string.notification_channel_name),
+            NotificationManager.IMPORTANCE_DEFAULT,
         ).apply {
             description = "WhiteVPN status"
             enableLights(false)
@@ -28,6 +29,7 @@ internal object VpnNotificationFactory {
             lightColor = Color.TRANSPARENT
             setShowBadge(false)
             lockscreenVisibility = Notification.VISIBILITY_PRIVATE
+            setSound(null, null)
         }
         manager.createNotificationChannel(channel)
     }
@@ -36,57 +38,94 @@ internal object VpnNotificationFactory {
         context: Context,
         state: VpnRuntimeState,
     ): Notification {
-        val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)
-            ?: Intent()
-        val contentIntent = PendingIntent.getActivity(
-            context,
-            100,
-            launchIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-        )
+        val launchIntent =
+            context.packageManager.getLaunchIntentForPackage(context.packageName)
+                ?.apply { addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_NEW_TASK) }
+                ?: Intent()
+        val contentIntent =
+            PendingIntent.getActivity(
+                context,
+                100,
+                launchIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
 
-        val stopIntent = PendingIntent.getService(
-            context,
-            101,
-            Intent(context, PerdonusVpnService::class.java).setAction(PerdonusVpnService.ACTION_STOP),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-        )
+        val stopIntent =
+            PendingIntent.getService(
+                context,
+                101,
+                Intent(context, PerdonusVpnService::class.java).setAction(PerdonusVpnService.ACTION_STOP),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
 
-        val body = buildString {
-            state.activePingMs?.let { append("Ping: ${it} ms") }
-            val uptime = state.startedAtEpochMs?.let(::formatUptime)
-            if (!uptime.isNullOrBlank()) {
-                if (isNotEmpty()) append("  •  ")
-                append(uptime)
-            }
-            if (isEmpty()) {
-                append(state.message ?: "VPN active")
-            }
-        }
+        val builder =
+            NotificationCompat.Builder(context, CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_notification_status)
+                .setContentTitle(buildTitle(context, state))
+                .setSubText(context.getString(R.string.app_name))
+                .setContentText(buildBody(context, state))
+                .setStyle(NotificationCompat.BigTextStyle().bigText(buildBody(context, state)))
+                .setOnlyAlertOnce(true)
+                .setSilent(true)
+                .setOngoing(state.isRunning)
+                .setShowWhen(state.startedAtEpochMs != null)
+                .setWhen(state.startedAtEpochMs ?: System.currentTimeMillis())
+                .setUsesChronometer(state.status == TunnelStatus.CONNECTED && state.startedAtEpochMs != null)
+                .setCategory(NotificationCompat.CATEGORY_SERVICE)
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+                .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
+                .setContentIntent(contentIntent)
 
-        return NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.stat_sys_warning)
-            .setContentTitle(state.activeProfileName ?: "WhiteVPN")
-            .setContentText(body)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
-            .setOnlyAlertOnce(true)
-            .setSilent(true)
-            .setOngoing(state.isRunning)
-            .setShowWhen(false)
-            .setContentIntent(contentIntent)
-            .addAction(
-                android.R.drawable.ic_media_pause,
-                "Остановить",
+        if (state.isRunning) {
+            builder.addAction(
+                R.drawable.ic_stop,
+                context.getString(R.string.notification_stop),
                 stopIntent,
             )
-            .build()
+        }
+
+        return builder.build()
     }
+
+    private fun buildTitle(
+        context: Context,
+        state: VpnRuntimeState,
+    ): String =
+        when (state.status) {
+            TunnelStatus.CONNECTING -> context.getString(R.string.notification_connecting)
+            TunnelStatus.STOPPING -> context.getString(R.string.notification_stopping)
+            TunnelStatus.PERMISSION_REQUIRED -> context.getString(R.string.notification_permission_required)
+            TunnelStatus.CONNECTED -> state.activeProfileName ?: context.getString(R.string.app_name)
+            TunnelStatus.ERROR -> state.message ?: context.getString(R.string.status_error_generic)
+            TunnelStatus.IDLE -> context.getString(R.string.app_name)
+        }
+
+    private fun buildBody(
+        context: Context,
+        state: VpnRuntimeState,
+    ): String =
+        when (state.status) {
+            TunnelStatus.CONNECTED -> {
+                buildList {
+                    add(context.getString(R.string.notification_connected))
+                    state.activePingMs?.let { add("Ping ${it} ms") }
+                    state.startedAtEpochMs?.let(::formatUptime)?.let(add::add)
+                }.joinToString(separator = "  •  ")
+            }
+
+            TunnelStatus.CONNECTING -> context.getString(R.string.notification_connecting)
+            TunnelStatus.STOPPING -> context.getString(R.string.notification_stopping)
+            TunnelStatus.PERMISSION_REQUIRED -> context.getString(R.string.notification_permission_required)
+            TunnelStatus.ERROR -> state.message ?: context.getString(R.string.status_error_generic)
+            TunnelStatus.IDLE -> state.message ?: context.getString(R.string.app_name)
+        }
 
     private fun formatUptime(startedAtEpochMs: Long): String {
         val elapsedSeconds = ((System.currentTimeMillis() - startedAtEpochMs) / 1000L).coerceAtLeast(0)
         val hours = elapsedSeconds / 3600L
         val minutes = (elapsedSeconds % 3600L) / 60L
         val seconds = elapsedSeconds % 60L
-        return String.format("Up: %02d:%02d:%02d", hours, minutes, seconds)
+        return String.format("%02d:%02d:%02d", hours, minutes, seconds)
     }
 }

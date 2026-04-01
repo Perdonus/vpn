@@ -28,7 +28,8 @@ internal object VpnToggleWidgetRenderer {
         val (label, background) =
             when (state.status) {
                 TunnelStatus.CONNECTED ->
-                    context.getString(R.string.widget_state_on) to R.drawable.widget_toggle_background_active
+                    (state.activePingMs?.let { "$it ms" } ?: context.getString(R.string.widget_state_on)) to
+                        R.drawable.widget_toggle_background_active
                 TunnelStatus.CONNECTING ->
                     context.getString(R.string.widget_state_connecting) to R.drawable.widget_toggle_background_pending
                 TunnelStatus.STOPPING ->
