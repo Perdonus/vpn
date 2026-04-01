@@ -6,14 +6,14 @@
     <path
         android:fillColor="@android:color/white"
         android:fillAlpha="0.25"
-        android:pathData="M36,13A23,23 0 1,1 35.99,13z" />
+        android:pathData="M36,10l18,6v14c0,11.9 -7.8,23 -18,27 -10.2,-4 -18,-15.1 -18,-27V16l18,-6z" />
     <path
         android:fillColor="#FF000000"
-        android:pathData="M36,17A19,19 0 1,1 35.99,17z" />
+        android:pathData="M36,15l13,4.3v10.8c0,9.1 -5.9,17.7 -13,20.8 -7.1,-3.1 -13,-11.7 -13,-20.8V19.3L36,15z" />
     <path
         android:fillColor="#FF000000"
-        android:pathData="M37.6,24h-3.2v14.2h3.2z" />
+        android:pathData="M37.6,23h-3.2v13.8h3.2z" />
     <path
         android:fillColor="#FF000000"
-        android:pathData="M43.9,27.5l-3.02,3.02a7.9,7.9 0 1,1 -9.76,0l-3.02,-3.02a12.2,12.2 0 1,0 15.8,0z" />
+        android:pathData="M44.3,27.2l-3.02,3.02a7.9,7.9 0 1,1 -10.56,0l-3.02,-3.02a12.2,12.2 0 1,0 16.6,0z" />
 </vector>

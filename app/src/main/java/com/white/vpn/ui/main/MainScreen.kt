@@ -18,19 +18,23 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.PowerSettingsNew
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -49,6 +53,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.white.vpn.R
+import com.white.vpn.data.SubscriptionMode
 import com.white.vpn.vpn.TunnelStatus
 import kotlinx.coroutines.delay
 
@@ -57,6 +62,7 @@ fun MainScreen(
     state: MainUiState,
     onToggleConnection: () -> Unit,
     onOpenChannel: () -> Unit,
+    onSelectSubscriptionMode: (SubscriptionMode) -> Unit,
 ) {
     val colorScheme = MaterialTheme.colorScheme
     val status = state.connection.status
@@ -65,6 +71,7 @@ fun MainScreen(
     val isPermissionRequired = status == TunnelStatus.PERMISSION_REQUIRED
     val hasError = status == TunnelStatus.ERROR
     val uptime = rememberUptimeLabel(state.connection.startedAtEpochMs, state.connection.status)
+    val trafficLabel = rememberTrafficLabel(state)
     val pulseTransition = rememberInfiniteTransition(label = "whitevpn-pulse")
     val pulseScale by pulseTransition.animateFloat(
         initialValue = 1f,
@@ -119,6 +126,7 @@ fun MainScreen(
             TunnelStatus.CONNECTED ->
                 state.connection.activePingMs?.let { stringResource(R.string.status_ping_value, it) }
                     ?: stringResource(R.string.status_ping_unknown)
+
             TunnelStatus.CONNECTING -> state.connection.message ?: stringResource(R.string.status_connecting)
             TunnelStatus.STOPPING -> state.connection.message ?: stringResource(R.string.status_stopping)
             TunnelStatus.PERMISSION_REQUIRED -> state.connection.message ?: stringResource(R.string.status_permission_required)
@@ -143,8 +151,23 @@ fun MainScreen(
                 .statusBarsPadding()
                 .navigationBarsPadding(),
     ) {
+        AnimatedVisibility(
+            visible = status == TunnelStatus.CONNECTED,
+            modifier =
+                Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 12.dp, start = 20.dp, end = 20.dp),
+            enter = fadeIn(animationSpec = tween(200)),
+            exit = fadeOut(animationSpec = tween(120)),
+        ) {
+            TrafficPill(trafficLabel = trafficLabel)
+        }
+
         Column(
-            modifier = Modifier.align(Alignment.Center),
+            modifier =
+                Modifier
+                    .align(Alignment.Center)
+                    .padding(horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(24.dp),
         ) {
@@ -218,20 +241,123 @@ fun MainScreen(
             }
         }
 
-        OutlinedButton(
-            onClick = onOpenChannel,
+        Column(
             modifier =
                 Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(start = 24.dp, end = 24.dp, bottom = 20.dp)
+                    .padding(start = 20.dp, end = 20.dp, bottom = 20.dp)
                     .fillMaxWidth(),
-            colors =
-                ButtonDefaults.buttonColors(
-                    containerColor = colorScheme.surface.copy(alpha = 0.84f),
-                    contentColor = colorScheme.onSurface,
-                ),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(text = stringResource(R.string.channel_subscribe))
+            SubscriptionModeToggle(
+                selectedMode = state.settings.subscriptionMode,
+                enabled = !isBusy && !state.isRefreshing,
+                onSelect = onSelectSubscriptionMode,
+            )
+
+            OutlinedButton(
+                onClick = onOpenChannel,
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .widthIn(max = 420.dp),
+                colors =
+                    ButtonDefaults.buttonColors(
+                        containerColor = colorScheme.surface.copy(alpha = 0.88f),
+                        contentColor = colorScheme.onSurface,
+                    ),
+            ) {
+                Text(text = stringResource(R.string.channel_subscribe))
+            }
+        }
+    }
+}
+
+@Composable
+private fun TrafficPill(trafficLabel: String) {
+    Surface(
+        modifier = Modifier.widthIn(max = 420.dp),
+        shape = RoundedCornerShape(24.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        shadowElevation = 14.dp,
+        tonalElevation = 8.dp,
+    ) {
+        Text(
+            text = trafficLabel,
+            style = MaterialTheme.typography.labelLarge,
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
+            textAlign = TextAlign.Center,
+        )
+    }
+}
+
+@Composable
+private fun SubscriptionModeToggle(
+    selectedMode: SubscriptionMode,
+    enabled: Boolean,
+    onSelect: (SubscriptionMode) -> Unit,
+) {
+    val modes = listOf(SubscriptionMode.MOBILE, SubscriptionMode.MOBILE_2)
+
+    Surface(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .widthIn(max = 420.dp),
+        shape = RoundedCornerShape(28.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        shadowElevation = 10.dp,
+        tonalElevation = 6.dp,
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(6.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            modes.forEach { mode ->
+                val selected = mode == selectedMode
+                val backgroundColor by animateColorAsState(
+                    targetValue =
+                        when {
+                            selected -> MaterialTheme.colorScheme.primary
+                            else -> Color.Transparent
+                        },
+                    animationSpec = tween(220),
+                    label = "subscription-mode-background",
+                )
+                val contentColor by animateColorAsState(
+                    targetValue =
+                        when {
+                            selected -> MaterialTheme.colorScheme.onPrimary
+                            enabled -> MaterialTheme.colorScheme.onSurface
+                            else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.42f)
+                        },
+                    animationSpec = tween(220),
+                    label = "subscription-mode-content",
+                )
+
+                Box(
+                    modifier =
+                        Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(22.dp))
+                            .background(backgroundColor)
+                            .clickable(enabled = enabled && !selected) {
+                                onSelect(mode)
+                            }
+                            .padding(horizontal = 12.dp, vertical = 14.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = mode.displayName,
+                        color = contentColor,
+                        style = MaterialTheme.typography.labelLarge,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
         }
     }
 }
@@ -300,6 +426,17 @@ private fun StatusButtonContent(
 }
 
 @Composable
+private fun rememberTrafficLabel(state: MainUiState): String {
+    val received = formatBytes(state.connection.sessionRxBytes)
+    val sent = formatBytes(state.connection.sessionTxBytes)
+    return stringResource(
+        R.string.traffic_session_summary,
+        stringResource(R.string.traffic_received, received),
+        stringResource(R.string.traffic_sent, sent),
+    )
+}
+
+@Composable
 private fun rememberUptimeLabel(
     startedAtEpochMs: Long?,
     status: TunnelStatus,
@@ -321,4 +458,22 @@ private fun formatUptime(startedAtEpochMs: Long): String {
     val minutes = (elapsedSeconds % 3_600L) / 60L
     val seconds = elapsedSeconds % 60L
     return String.format("%02d:%02d:%02d", hours, minutes, seconds)
+}
+
+private fun formatBytes(bytes: Long): String {
+    val normalizedBytes = bytes.coerceAtLeast(0L)
+    val units = listOf("B", "KB", "MB", "GB")
+    var value = normalizedBytes.toDouble()
+    var unitIndex = 0
+    while (value >= 1024 && unitIndex < units.lastIndex) {
+        value /= 1024.0
+        unitIndex += 1
+    }
+    val formatted =
+        if (unitIndex == 0) {
+            value.toLong().toString()
+        } else {
+            String.format("%.1f", value)
+        }
+    return "$formatted ${units[unitIndex]}"
 }

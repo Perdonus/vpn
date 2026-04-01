@@ -37,12 +37,28 @@ class ServerRepository(
         settingsStore.setSubscriptionUrl(url)
     }
 
+    suspend fun switchSubscriptionMode(mode: SubscriptionMode): RefreshResult = withContext(Dispatchers.IO) {
+        settingsStore.setSubscriptionMode(mode)
+        val body = download(mode.subscriptionUrl)
+        val servers = SubscriptionImporter.import(body)
+        settingsStore.replaceServers(servers)
+        settingsStore.resetSelectedServerIfMissing()
+        RefreshResult(
+            url = mode.subscriptionUrl,
+            importedServers = servers,
+        )
+    }
+
     suspend fun selectServer(serverId: String) {
         settingsStore.setSelectedServerId(serverId)
     }
 
     suspend fun updatePing(serverId: String, pingMs: Long?) {
         settingsStore.updatePing(serverId, pingMs)
+    }
+
+    suspend fun updatePings(pingsByServerId: Map<String, Long?>) {
+        settingsStore.updatePings(pingsByServerId)
     }
 
     private fun download(url: String): String {

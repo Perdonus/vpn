@@ -42,6 +42,7 @@ class AppSettingsStore(
             .map { preferences ->
                 AppSettings(
                     subscriptionUrl = preferences[Keys.SubscriptionUrl] ?: AppDefaults.DEFAULT_SUBSCRIPTION_URL,
+                    subscriptionMode = storedSubscriptionMode(preferences[Keys.SubscriptionModeId], preferences[Keys.SubscriptionUrl]),
                     selectedServerId = preferences[Keys.SelectedServerId] ?: VpnServer.AUTO_ID,
                     servers = decodeServers(preferences[Keys.ServersJson]),
                     lastSubscriptionSyncEpochMs = preferences[Keys.LastSyncEpochMs],
@@ -50,7 +51,18 @@ class AppSettingsStore(
 
     suspend fun setSubscriptionUrl(url: String) {
         context.vpnDataStore.edit { preferences ->
-            preferences[Keys.SubscriptionUrl] = url.trim().ifEmpty { AppDefaults.DEFAULT_SUBSCRIPTION_URL }
+            val normalizedUrl = url.trim().ifEmpty { AppDefaults.DEFAULT_SUBSCRIPTION_URL }
+            preferences[Keys.SubscriptionUrl] = normalizedUrl
+            SubscriptionMode.fromUrl(normalizedUrl)?.let {
+                preferences[Keys.SubscriptionModeId] = it.id
+            }
+        }
+    }
+
+    suspend fun setSubscriptionMode(mode: SubscriptionMode) {
+        context.vpnDataStore.edit { preferences ->
+            preferences[Keys.SubscriptionModeId] = mode.id
+            preferences[Keys.SubscriptionUrl] = mode.subscriptionUrl
         }
     }
 
@@ -80,6 +92,20 @@ class AppSettingsStore(
         }
     }
 
+    suspend fun updatePings(pingsByServerId: Map<String, Long?>) {
+        if (pingsByServerId.isEmpty()) return
+        context.vpnDataStore.edit { preferences ->
+            val updated = decodeServers(preferences[Keys.ServersJson]).map { server ->
+                if (pingsByServerId.containsKey(server.id)) {
+                    server.copy(pingMs = pingsByServerId[server.id])
+                } else {
+                    server
+                }
+            }
+            preferences[Keys.ServersJson] = json.encodeToString(serversSerializer, updated)
+        }
+    }
+
     suspend fun resetSelectedServerIfMissing() {
         context.vpnDataStore.edit { preferences ->
             val selected = preferences[Keys.SelectedServerId] ?: VpnServer.AUTO_ID
@@ -96,8 +122,18 @@ class AppSettingsStore(
         return runCatching { json.decodeFromString(serversSerializer, raw) }.getOrDefault(emptyList())
     }
 
+    private fun storedSubscriptionMode(
+        storedModeId: String?,
+        storedUrl: String?,
+    ): SubscriptionMode =
+        storedModeId
+            ?.let(SubscriptionMode::fromId)
+            ?: SubscriptionMode.fromUrl(storedUrl)
+            ?: AppDefaults.DEFAULT_SUBSCRIPTION_MODE
+
     private object Keys {
         val SubscriptionUrl = stringPreferencesKey("subscription_url")
+        val SubscriptionModeId = stringPreferencesKey("subscription_mode_id")
         val SelectedServerId = stringPreferencesKey("selected_server_id")
         val ServersJson = stringPreferencesKey("servers_json")
         val LastSyncEpochMs = longPreferencesKey("last_sync_epoch_ms")

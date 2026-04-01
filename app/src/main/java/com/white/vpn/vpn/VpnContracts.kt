@@ -15,6 +15,8 @@ data class TunnelSelection(
 data class TunnelProfile(
     val id: String,
     val displayName: String,
+    val host: String,
+    val port: Int,
     val lastPingMs: Long? = null,
 )
 
@@ -33,6 +35,8 @@ data class VpnRuntimeState(
     val activeProfileName: String? = null,
     val activePingMs: Long? = null,
     val startedAtEpochMs: Long? = null,
+    val sessionRxBytes: Long = 0L,
+    val sessionTxBytes: Long = 0L,
     val isAutoMode: Boolean = true,
     val message: String? = null,
     val permissionIntent: Intent? = null,
@@ -46,6 +50,7 @@ interface TunnelProfileStore {
     suspend fun getSelection(): TunnelSelection
     suspend fun setActiveProfileId(profileId: String?)
     suspend fun updatePing(profileId: String, pingMs: Long?)
+    suspend fun updatePings(pingsByProfileId: Map<String, Long?>)
 }
 
 interface XrayConfigFactory {

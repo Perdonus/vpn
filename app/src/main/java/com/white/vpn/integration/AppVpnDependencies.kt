@@ -27,6 +27,8 @@ class AppVpnDependencies(
                     TunnelProfile(
                         id = server.id,
                         displayName = server.displayName,
+                        host = server.host,
+                        port = server.port,
                         lastPingMs = server.pingMs,
                     )
                 }
@@ -49,6 +51,10 @@ class AppVpnDependencies(
 
             override suspend fun updatePing(profileId: String, pingMs: Long?) {
                 serverRepository.updatePing(profileId, pingMs)
+            }
+
+            override suspend fun updatePings(pingsByProfileId: Map<String, Long?>) {
+                serverRepository.updatePings(pingsByProfileId)
             }
         }
 
@@ -78,4 +84,3 @@ class AppVpnDependencies(
             ?: error("VPN server not found: $profileId")
     }
 }
-

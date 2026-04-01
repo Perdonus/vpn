@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.white.vpn.data.RefreshResult
 import com.white.vpn.data.ServerRepository
+import com.white.vpn.data.SubscriptionMode
 import com.white.vpn.domain.AppSettings
 import com.white.vpn.domain.VpnServer
 import com.white.vpn.vpn.VpnManager
@@ -80,6 +81,21 @@ class MainViewModel(
         }
     }
 
+    fun switchSubscriptionMode(mode: SubscriptionMode) {
+        viewModelScope.launch {
+            if (uiState.value.settings.subscriptionMode == mode) {
+                return@launch
+            }
+            isRefreshing.value = true
+            runCatching { serverRepository.switchSubscriptionMode(mode) }
+                .onSuccess(::handleRefreshSuccess)
+                .onFailure { error ->
+                    message.value = error.message ?: "Не удалось переключить режим"
+                }
+            isRefreshing.value = false
+        }
+    }
+
     fun dismissMessage() {
         message.value = null
     }
@@ -112,4 +128,3 @@ data class MainUiState(
     val manualRequestedProfileId: String?
         get() = settings.selectedServerId.takeUnless { it == VpnServer.AUTO_ID }
 }
-

@@ -21,6 +21,7 @@
     <string name="notification_permission_required">Разреши уведомления и VPN</string>
     <string name="channel_subscribe">Подписаться на канал</string>
     <string name="status_checking_ping">Проверяем сеть</string>
+    <string name="status_checking_youtube">Проверяем YouTube</string>
     <string name="status_ping_value">Ping %1$d ms</string>
     <string name="status_ping_unknown">Ping --</string>
     <string name="status_selecting_server">Подбираем сервер</string>
@@ -29,4 +30,7 @@
     <string name="status_permission_required">Разреши VPN</string>
     <string name="status_notification_permission_required">Разреши уведомления</string>
     <string name="status_error_generic">Ошибка</string>
+    <string name="traffic_received">↓ %1$s</string>
+    <string name="traffic_sent">↑ %1$s</string>
+    <string name="traffic_session_summary">%1$s    %2$s</string>
 </resources>

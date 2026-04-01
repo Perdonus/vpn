@@ -12,7 +12,7 @@ import androidx.core.app.NotificationCompat
 import com.white.vpn.R
 
 internal object VpnNotificationFactory {
-    const val CHANNEL_ID = "white_vpn_channel"
+    const val CHANNEL_ID = "white_vpn_channel_v2"
     const val NOTIFICATION_ID = 2001
 
     fun ensureChannel(context: Context) {
@@ -21,7 +21,7 @@ internal object VpnNotificationFactory {
         val channel = NotificationChannel(
             CHANNEL_ID,
             context.getString(R.string.notification_channel_name),
-            NotificationManager.IMPORTANCE_LOW,
+            NotificationManager.IMPORTANCE_DEFAULT,
         ).apply {
             description = "WhiteVPN status"
             enableLights(false)
@@ -67,7 +67,6 @@ internal object VpnNotificationFactory {
                 .setContentText(body)
                 .setStyle(NotificationCompat.BigTextStyle().bigText(body))
                 .setOnlyAlertOnce(true)
-                .setSilent(true)
                 .setOngoing(state.isRunning)
                 .setShowWhen(state.startedAtEpochMs != null)
                 .setWhen(state.startedAtEpochMs ?: System.currentTimeMillis())
@@ -112,7 +111,8 @@ internal object VpnNotificationFactory {
                 parts += state.activePingMs?.let { context.getString(R.string.status_ping_value, it) }
                     ?: context.getString(R.string.status_ping_unknown)
                 parts += state.startedAtEpochMs?.let(::formatUptime) ?: "00:00:00"
-                parts.joinToString(separator = "  •  ")
+                parts += buildTrafficSummary(context, state)
+                parts.joinToString(separator = "\n")
             }
 
             TunnelStatus.CONNECTING -> state.message ?: context.getString(R.string.notification_connecting)
@@ -121,6 +121,33 @@ internal object VpnNotificationFactory {
             TunnelStatus.ERROR -> state.message ?: context.getString(R.string.status_error_generic)
             TunnelStatus.IDLE -> state.message ?: context.getString(R.string.app_name)
         }
+
+    private fun buildTrafficSummary(
+        context: Context,
+        state: VpnRuntimeState,
+    ): String {
+        val received = context.getString(R.string.traffic_received, formatBytes(state.sessionRxBytes))
+        val sent = context.getString(R.string.traffic_sent, formatBytes(state.sessionTxBytes))
+        return context.getString(R.string.traffic_session_summary, received, sent)
+    }
+
+    private fun formatBytes(bytes: Long): String {
+        val normalizedBytes = bytes.coerceAtLeast(0L)
+        val units = listOf("B", "KB", "MB", "GB")
+        var value = normalizedBytes.toDouble()
+        var unitIndex = 0
+        while (value >= 1024 && unitIndex < units.lastIndex) {
+            value /= 1024.0
+            unitIndex += 1
+        }
+        val formatted =
+            if (unitIndex == 0) {
+                value.toLong().toString()
+            } else {
+                String.format("%.1f", value)
+            }
+        return "$formatted ${units[unitIndex]}"
+    }
 
     private fun formatUptime(startedAtEpochMs: Long): String {
         val elapsedSeconds = ((System.currentTimeMillis() - startedAtEpochMs) / 1000L).coerceAtLeast(0)

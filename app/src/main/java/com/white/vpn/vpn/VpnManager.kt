@@ -71,10 +71,25 @@ object VpnManager {
         }
     }
 
-    internal fun publish(state: VpnRuntimeState, context: Context? = null) {
+    internal fun publish(
+        state: VpnRuntimeState,
+        context: Context? = null,
+        updateWidgets: Boolean = true,
+    ) {
+        val previousState = _state.value
         _state.value = state
-        if (context != null) {
+        if (context != null && updateWidgets && shouldRefreshWidget(previousState, state)) {
             VpnToggleWidgetRenderer.updateAll(context)
         }
     }
+
+    private fun shouldRefreshWidget(
+        previousState: VpnRuntimeState,
+        newState: VpnRuntimeState,
+    ): Boolean =
+        previousState.status != newState.status ||
+            previousState.activeProfileName != newState.activeProfileName ||
+            previousState.activePingMs != newState.activePingMs ||
+            previousState.message != newState.message ||
+            previousState.permissionIntent != newState.permissionIntent
 }
