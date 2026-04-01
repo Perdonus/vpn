@@ -255,11 +255,6 @@ class PerdonusVpnService : VpnService() {
             return fallback to fallback.lastPingMs
         }
 
-        if (announceProgress) {
-            publishState(TunnelStatus.CONNECTING, message = getString(com.white.vpn.R.string.status_checking_youtube))
-            updateNotificationNow()
-        }
-
         return validateReachableProfiles(dependencies, reachableProfiles) ?: reachableProfiles.first()
     }
 

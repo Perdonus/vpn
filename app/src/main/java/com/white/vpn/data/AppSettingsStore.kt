@@ -3,6 +3,7 @@ package com.white.vpn.data
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.longPreferencesKey
@@ -44,6 +45,7 @@ class AppSettingsStore(
                     subscriptionUrl = preferences[Keys.SubscriptionUrl] ?: AppDefaults.DEFAULT_SUBSCRIPTION_URL,
                     subscriptionMode = storedSubscriptionMode(preferences[Keys.SubscriptionModeId], preferences[Keys.SubscriptionUrl]),
                     selectedServerId = preferences[Keys.SelectedServerId] ?: VpnServer.AUTO_ID,
+                    showChannelPrompt = preferences[Keys.ShowChannelPrompt] ?: true,
                     servers = decodeServers(preferences[Keys.ServersJson]),
                     lastSubscriptionSyncEpochMs = preferences[Keys.LastSyncEpochMs],
                 )
@@ -69,6 +71,12 @@ class AppSettingsStore(
     suspend fun setSelectedServerId(serverId: String) {
         context.vpnDataStore.edit { preferences ->
             preferences[Keys.SelectedServerId] = serverId.ifBlank { VpnServer.AUTO_ID }
+        }
+    }
+
+    suspend fun setShowChannelPrompt(show: Boolean) {
+        context.vpnDataStore.edit { preferences ->
+            preferences[Keys.ShowChannelPrompt] = show
         }
     }
 
@@ -135,6 +143,7 @@ class AppSettingsStore(
         val SubscriptionUrl = stringPreferencesKey("subscription_url")
         val SubscriptionModeId = stringPreferencesKey("subscription_mode_id")
         val SelectedServerId = stringPreferencesKey("selected_server_id")
+        val ShowChannelPrompt = booleanPreferencesKey("show_channel_prompt")
         val ServersJson = stringPreferencesKey("servers_json")
         val LastSyncEpochMs = longPreferencesKey("last_sync_epoch_ms")
     }

@@ -8,6 +8,7 @@ data class AppSettings(
     val subscriptionUrl: String,
     val subscriptionMode: SubscriptionMode = SubscriptionMode.MOBILE,
     val selectedServerId: String = VpnServer.AUTO_ID,
+    val showChannelPrompt: Boolean = true,
     val servers: List<VpnServer> = emptyList(),
     val lastSubscriptionSyncEpochMs: Long? = null,
 ) {

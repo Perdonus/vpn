@@ -100,6 +100,12 @@ class MainViewModel(
         message.value = null
     }
 
+    fun dismissChannelPrompt() {
+        viewModelScope.launch {
+            serverRepository.dismissChannelPrompt()
+        }
+    }
+
     private fun handleRefreshSuccess(result: RefreshResult) {
         message.value =
             if (result.importedServers.isEmpty()) {

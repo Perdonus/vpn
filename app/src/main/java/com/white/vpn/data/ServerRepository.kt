@@ -53,6 +53,10 @@ class ServerRepository(
         settingsStore.setSelectedServerId(serverId)
     }
 
+    suspend fun dismissChannelPrompt() {
+        settingsStore.setShowChannelPrompt(false)
+    }
+
     suspend fun updatePing(serverId: String, pingMs: Long?) {
         settingsStore.updatePing(serverId, pingMs)
     }

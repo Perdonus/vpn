@@ -86,6 +86,7 @@ class MainActivity : ComponentActivity() {
                         beginConnectionFlow(uiState)
                     },
                     onOpenChannel = {
+                        viewModel.dismissChannelPrompt()
                         startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(CHANNEL_URL)))
                     },
                     onSelectSubscriptionMode = { mode ->
