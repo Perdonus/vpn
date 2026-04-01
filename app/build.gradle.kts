@@ -9,11 +9,11 @@ plugins {
 }
 
 android {
-    namespace = "com.perdonus.vpn"
+    namespace = "com.white.vpn"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.perdonus.vpn"
+        applicationId = "com.white.vpn"
         minSdk = 24
         targetSdk = 35
         versionCode = 1
@@ -92,7 +92,7 @@ val prepareLibv2ray by tasks.registering {
             URL(libv2rayUrl)
                 .openConnection() as HttpURLConnection
         connection.instanceFollowRedirects = true
-        connection.setRequestProperty("User-Agent", "PerdonusVPN-Build")
+        connection.setRequestProperty("User-Agent", "WhiteVPN-Build")
         connection.connectTimeout = 20_000
         connection.readTimeout = 120_000
         connection.requestMethod = "GET"

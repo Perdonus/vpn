@@ -1,5 +1,5 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <style name="Theme.PerdonusVpn" parent="Theme.Material3.Light.NoActionBar">
+    <style name="Theme.WhiteVpn" parent="Theme.Material3.Light.NoActionBar">
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@color/brand_cream</item>
         <item name="android:windowLightStatusBar">true</item>
@@ -12,4 +12,3 @@
         <item name="android:forceDarkAllowed" tools:targetApi="q">false</item>
     </style>
 </resources>
-

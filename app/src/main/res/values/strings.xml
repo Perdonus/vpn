@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Perdonus VPN</string>
+    <string name="app_name">WhiteVPN</string>
     <string name="connect">Подключить</string>
     <string name="disconnect">Отключить</string>
     <string name="server_auto">Авто</string>
@@ -7,9 +7,8 @@
     <string name="subscription_url">URL подписки</string>
     <string name="save">Сохранить</string>
     <string name="settings">Настройки</string>
-    <string name="widget_toggle">Переключить VPN</string>
-    <string name="notification_channel_name">Подключение VPN</string>
+    <string name="widget_toggle">WhiteVPN</string>
+    <string name="notification_channel_name">WhiteVPN</string>
     <string name="notification_stop">Остановить</string>
     <string name="notification_connecting">Подключение…</string>
 </resources>
-

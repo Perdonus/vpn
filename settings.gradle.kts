@@ -14,6 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "vpn"
+rootProject.name = "WhiteVPN"
 include(":app")
-

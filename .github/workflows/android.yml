@@ -36,7 +36,7 @@ jobs:
           echo "Workflow: ${GITHUB_WORKFLOW}" | tee -a ci-logs/context.txt
           echo "Runner: ${RUNNER_OS}" | tee -a ci-logs/context.txt
           ./gradlew --version | tee ci-logs/gradle-version.txt
-          ./gradlew assembleDebug assembleRelease --console=plain --stacktrace --info 2>&1 | tee ci-logs/gradle-build.log
+          ./gradlew assembleDebug --console=plain --stacktrace --info 2>&1 | tee ci-logs/gradle-build.log
 
       - name: Collect Diagnostic Files
         if: always()
@@ -50,7 +50,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: perdonus-vpn-logs
+          name: whitevpn-debug-logs
           path: |
             ci-logs/**
             app/build/reports/**
@@ -62,7 +62,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: perdonus-vpn-apks
+          name: whitevpn-debug-apk
           path: |
             app/build/outputs/apk/debug/*.apk
-            app/build/outputs/apk/release/*.apk
