@@ -6,6 +6,9 @@ import go.Seq
 import libv2ray.CoreCallbackHandler
 import libv2ray.CoreController
 import libv2ray.Libv2ray
+import java.nio.charset.StandardCharsets
+import java.security.MessageDigest
+import java.util.Base64
 import java.util.concurrent.atomic.AtomicBoolean
 
 interface VpnCore {
@@ -50,11 +53,20 @@ class LibV2rayCore(
                 return
             }
             Seq.setContext(context)
-            val androidId = Settings.Secure.getString(
-                context.contentResolver,
-                Settings.Secure.ANDROID_ID,
-            ).orEmpty()
-            Libv2ray.initCoreEnv(context.filesDir.absolutePath, androidId)
+            val identitySeed =
+                Settings.Secure.getString(
+                    context.contentResolver,
+                    Settings.Secure.ANDROID_ID,
+                )?.takeIf { it.isNotBlank() }
+                    ?: "${context.packageName}:${context.filesDir.absolutePath}"
+            val xudpBaseKey =
+                Base64.getUrlEncoder()
+                    .withoutPadding()
+                    .encodeToString(
+                        MessageDigest.getInstance("SHA-256")
+                            .digest(identitySeed.toByteArray(StandardCharsets.UTF_8)),
+                    )
+            Libv2ray.initCoreEnv(context.filesDir.absolutePath, xudpBaseKey)
         }
     }
 }
