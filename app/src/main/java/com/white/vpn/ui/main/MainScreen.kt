@@ -223,7 +223,7 @@ fun MainScreen(
             modifier =
                 Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(horizontal = 24.dp, bottom = 20.dp)
+                    .padding(start = 24.dp, end = 24.dp, bottom = 20.dp)
                     .fillMaxWidth(),
             colors =
                 ButtonDefaults.buttonColors(
