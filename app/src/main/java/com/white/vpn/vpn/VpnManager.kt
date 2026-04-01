@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.VpnService
 import androidx.core.content.ContextCompat
+import com.white.vpn.R
 import com.white.vpn.widget.VpnToggleWidgetRenderer
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -22,7 +23,7 @@ object VpnManager {
                 VpnRuntimeState(
                     status = TunnelStatus.PERMISSION_REQUIRED,
                     permissionIntent = prepareIntent,
-                    message = "VPN permission required",
+                    message = context.getString(R.string.status_permission_required),
                 ),
                 context,
             )
@@ -31,7 +32,7 @@ object VpnManager {
         publish(
             _state.value.copy(
                 status = TunnelStatus.CONNECTING,
-                message = "Connecting",
+                message = context.getString(R.string.status_connecting),
                 permissionIntent = null,
             ),
             context,
@@ -50,7 +51,7 @@ object VpnManager {
         publish(
             _state.value.copy(
                 status = TunnelStatus.STOPPING,
-                message = "Stopping",
+                message = context.getString(R.string.status_stopping),
                 permissionIntent = null,
             ),
             context,

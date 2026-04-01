@@ -38,7 +38,7 @@ internal object VpnToggleWidgetRenderer {
                     (state.message
                         ?: context.getString(R.string.widget_state_stopping)) to R.drawable.widget_toggle_background_pending
                 TunnelStatus.PERMISSION_REQUIRED ->
-                    context.getString(R.string.status_notification_permission_required) to
+                    (state.message ?: context.getString(R.string.status_notification_permission_required)) to
                         R.drawable.widget_toggle_background_pending
                 TunnelStatus.ERROR ->
                     (state.message ?: context.getString(R.string.status_error_generic)) to

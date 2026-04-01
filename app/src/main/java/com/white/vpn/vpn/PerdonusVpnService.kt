@@ -97,7 +97,7 @@ class PerdonusVpnService : VpnService() {
             if (permissionIntent != null) {
                 publishState(
                     TunnelStatus.PERMISSION_REQUIRED,
-                    message = "VPN permission required",
+                    message = getString(com.white.vpn.R.string.status_permission_required),
                     permissionIntent = permissionIntent,
                 )
                 stopSelf()
@@ -298,7 +298,11 @@ class PerdonusVpnService : VpnService() {
         stopSelfAfter: Boolean = true,
         message: String = "Disconnected",
     ) = operationMutex.withLock {
-        publishState(TunnelStatus.STOPPING, activeProfile = activeProfile, message = "Stopping")
+        publishState(
+            TunnelStatus.STOPPING,
+            activeProfile = activeProfile,
+            message = getString(com.white.vpn.R.string.status_stopping),
+        )
         cleanupStoppedState(message = message, stopSelfAfter = stopSelfAfter)
     }
 
