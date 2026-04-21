@@ -23,9 +23,11 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import libv2ray.CoreCallbackHandler
 import java.net.InetSocketAddress
 import java.net.Socket
+import java.util.concurrent.ConcurrentHashMap
 
 class PerdonusVpnService : VpnService() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -40,10 +42,13 @@ class PerdonusVpnService : VpnService() {
     private var sessionAccumulatedRxBytes: Long = 0L
     private var sessionAccumulatedTxBytes: Long = 0L
     private var consecutiveProbeFailures: Int = 0
+    private var lastCurrentValidationAtMs: Long = 0L
 
     private var autoSelectionJob: Job? = null
     private var pingRefreshJob: Job? = null
     private var notificationJob: Job? = null
+    private val validationMutex = Mutex()
+    private val validationCache = ConcurrentHashMap<String, ValidationCacheEntry>()
 
     override fun onCreate() {
         super.onCreate()
@@ -210,6 +215,7 @@ class PerdonusVpnService : VpnService() {
         activeProfile = profile
         activePingMs = initialPingMs ?: profile.lastPingMs
         consecutiveProbeFailures = 0
+        lastCurrentValidationAtMs = System.currentTimeMillis()
         if (!preserveSession || startedAtEpochMs == null) {
             startedAtEpochMs = System.currentTimeMillis()
             resetTrafficSession()
@@ -224,8 +230,7 @@ class PerdonusVpnService : VpnService() {
         )
         updateNotificationNow()
         startNotificationTicker()
-        startActivePingLoop(dependencies)
-        startAutoSelectionLoop(dependencies)
+        startHealthMonitoringLoop(dependencies)
     }
 
     private suspend fun selectBestProfile(
@@ -247,83 +252,151 @@ class PerdonusVpnService : VpnService() {
                 .sortedBy { it.second }
 
         if (reachableProfiles.isEmpty()) {
-            val fallback =
-                profiles
-                    .filter { it.lastPingMs != null && it.lastPingMs >= 0L }
-                    .minByOrNull { it.lastPingMs ?: Long.MAX_VALUE }
-                    ?: profiles.first()
-            return fallback to fallback.lastPingMs
+            throw IllegalStateException("No reachable VPN servers available")
         }
 
-        return validateReachableProfiles(dependencies, reachableProfiles) ?: reachableProfiles.first()
+        return validateReachableProfiles(dependencies, reachableProfiles)
+            ?: throw IllegalStateException("No working VPN servers available")
     }
 
-    private fun startAutoSelectionLoop(dependencies: VpnDependencies) {
+    private fun startHealthMonitoringLoop(dependencies: VpnDependencies) {
         autoSelectionJob?.cancel()
-        if (!isAutoMode) return
+        pingRefreshJob?.cancel()
         autoSelectionJob =
             serviceScope.launch {
+                var lastFullSelectionAtMs = 0L
                 while (isActive && core.isRunning) {
-                    delay(AUTO_SELECTION_INTERVAL_MS)
-                    maybeSwitchToBestProfile(dependencies, announceProgress = false)
-                }
-            }
-    }
-
-    private fun startActivePingLoop(dependencies: VpnDependencies) {
-        pingRefreshJob?.cancel()
-        pingRefreshJob =
-            serviceScope.launch {
-                while (isActive && core.isRunning) {
-                    delay(ACTIVE_PING_INTERVAL_MS)
-                    val profile = activeProfile ?: continue
-                    val measuredPing = probeProfile(profile)
-
-                    if (!core.isRunning || activeProfile?.id != profile.id) {
+                    val profiles = dependencies.profileStore.getProfiles()
+                    if (profiles.isEmpty()) {
+                        delay(ACTIVE_PING_INTERVAL_MS)
                         continue
                     }
 
-                    if (measuredPing != null) {
+                    val probeResults = probeProfiles(profiles)
+                    dependencies.profileStore.updatePings(probeResults.mapKeys { it.key.id })
+
+                    val currentProfile =
+                        activeProfile ?: run {
+                            delay(ACTIVE_PING_INTERVAL_MS)
+                            continue
+                        }
+                    if (!core.isRunning || activeProfile?.id != currentProfile.id) {
+                        delay(ACTIVE_PING_INTERVAL_MS)
+                        continue
+                    }
+
+                    val currentPingMs = probeResults[currentProfile]
+                    if (currentPingMs != null) {
                         consecutiveProbeFailures = 0
-                        activePingMs = measuredPing
+                        val now = System.currentTimeMillis()
+                        if (now - lastCurrentValidationAtMs >= CURRENT_PROFILE_VALIDATION_INTERVAL_MS) {
+                            lastCurrentValidationAtMs = now
+                            val validationPassed = validateProfile(dependencies, currentProfile, forceRefresh = true)
+                            if (!validationPassed) {
+                                activePingMs = null
+                                publishState(
+                                    if (isAutoMode) TunnelStatus.CONNECTING else TunnelStatus.CONNECTED,
+                                    activeProfile = currentProfile,
+                                    pingMs = null,
+                                    startedAt = startedAtEpochMs,
+                                    message =
+                                        if (isAutoMode) {
+                                            getString(com.white.vpn.R.string.status_selecting_server)
+                                        } else {
+                                            getString(com.white.vpn.R.string.status_ping_unknown)
+                                        },
+                                )
+                                updateNotificationNow()
+                                if (isAutoMode) {
+                                    lastFullSelectionAtMs = now
+                                    maybeSwitchToBestProfile(
+                                        dependencies = dependencies,
+                                        profiles = profiles,
+                                        probeResults = probeResults,
+                                        announceProgress = false,
+                                        currentPingMs = currentPingMs,
+                                        forceSwitch = true,
+                                    )
+                                }
+                                delay(ACTIVE_PING_INTERVAL_MS)
+                                continue
+                            }
+                        }
+                        activePingMs = currentPingMs
                         publishState(
                             TunnelStatus.CONNECTED,
-                            activeProfile = profile,
-                            pingMs = measuredPing,
+                            activeProfile = currentProfile,
+                            pingMs = currentPingMs,
                             startedAt = startedAtEpochMs,
                         )
                         updateNotificationNow()
+                        if (isAutoMode && System.currentTimeMillis() - lastFullSelectionAtMs >= AUTO_SELECTION_INTERVAL_MS) {
+                            lastFullSelectionAtMs = System.currentTimeMillis()
+                            maybeSwitchToBestProfile(
+                                dependencies = dependencies,
+                                profiles = profiles,
+                                probeResults = probeResults,
+                                announceProgress = false,
+                                currentPingMs = currentPingMs,
+                                forceSwitch = false,
+                            )
+                        }
+                        delay(ACTIVE_PING_INTERVAL_MS)
                         continue
                     }
 
-                    activePingMs = null
                     consecutiveProbeFailures += 1
+                    activePingMs = null
                     publishState(
-                        TunnelStatus.CONNECTED,
-                        activeProfile = profile,
+                        if (isAutoMode) TunnelStatus.CONNECTING else TunnelStatus.CONNECTED,
+                        activeProfile = currentProfile,
                         pingMs = null,
                         startedAt = startedAtEpochMs,
+                        message =
+                            if (isAutoMode) {
+                                getString(com.white.vpn.R.string.status_selecting_server)
+                            } else {
+                                getString(com.white.vpn.R.string.status_ping_unknown)
+                            },
                     )
                     updateNotificationNow()
 
                     if (isAutoMode && consecutiveProbeFailures >= MAX_CONSECUTIVE_PROBE_FAILURES) {
-                        consecutiveProbeFailures = 0
-                        maybeSwitchToBestProfile(dependencies, announceProgress = false)
+                        lastFullSelectionAtMs = System.currentTimeMillis()
+                        maybeSwitchToBestProfile(
+                            dependencies = dependencies,
+                            profiles = profiles,
+                            probeResults = probeResults,
+                            announceProgress = false,
+                            currentPingMs = null,
+                            forceSwitch = true,
+                        )
                     }
+                    delay(ACTIVE_PING_INTERVAL_MS)
                 }
             }
     }
 
     private suspend fun maybeSwitchToBestProfile(
         dependencies: VpnDependencies,
+        profiles: List<TunnelProfile>,
+        probeResults: Map<TunnelProfile, Long?>,
         announceProgress: Boolean,
+        currentPingMs: Long?,
+        forceSwitch: Boolean,
     ) {
-        val profiles = dependencies.profileStore.getProfiles()
-        if (profiles.isEmpty()) return
+        if (!isAutoMode) return
         val currentProfile = activeProfile ?: return
-        val (bestProfile, bestPingMs) = selectBestProfile(dependencies, profiles, announceProgress)
+        if (profiles.isEmpty() || !core.isRunning || activeProfile?.id != currentProfile.id) return
 
-        if (!core.isRunning) return
+        val bestCandidate =
+            selectBestCandidateFromProbeResults(
+                dependencies = dependencies,
+                profiles = profiles,
+                probeResults = probeResults,
+                announceProgress = announceProgress,
+            ) ?: return
+        val (bestProfile, bestPingMs) = bestCandidate
         if (bestProfile.id == currentProfile.id) {
             activePingMs = bestPingMs ?: activePingMs
             publishState(
@@ -333,6 +406,9 @@ class PerdonusVpnService : VpnService() {
                 startedAt = startedAtEpochMs,
             )
             updateNotificationNow()
+            return
+        }
+        if (!forceSwitch && currentPingMs != null && bestPingMs != null && (currentPingMs - bestPingMs) < MIN_SWITCH_IMPROVEMENT_MS) {
             return
         }
 
@@ -347,6 +423,36 @@ class PerdonusVpnService : VpnService() {
                 preserveSession = true,
             )
         }
+    }
+
+    private suspend fun selectBestCandidateFromProbeResults(
+        dependencies: VpnDependencies,
+        profiles: List<TunnelProfile>,
+        probeResults: Map<TunnelProfile, Long?>,
+        announceProgress: Boolean,
+    ): Pair<TunnelProfile, Long?>? {
+        if (profiles.isEmpty()) return null
+        if (announceProgress) {
+            publishState(
+                TunnelStatus.CONNECTING,
+                message = getString(com.white.vpn.R.string.status_selecting_server),
+            )
+            updateNotificationNow()
+        }
+
+        val reachableProfiles =
+            probeResults.entries
+                .mapNotNull { (profile, pingMs) -> pingMs?.let { profile to it } }
+                .sortedBy { it.second }
+
+        if (reachableProfiles.isEmpty()) {
+            return null
+        }
+
+        return validateReachableProfiles(
+            dependencies = dependencies,
+            candidates = reachableProfiles,
+        )
     }
 
     private suspend fun probeProfiles(
@@ -381,14 +487,51 @@ class PerdonusVpnService : VpnService() {
     private suspend fun validateProfile(
         dependencies: VpnDependencies,
         profile: TunnelProfile,
-    ): Boolean = withContext(Dispatchers.IO) {
-        runCatching {
-            core.measureOutboundDelay(
-                dependencies.configFactory.buildPingConfig(profile),
-                YOUTUBE_VALIDATION_URL,
-            ) >= 0L
-        }.getOrDefault(false)
-    }
+        forceRefresh: Boolean = false,
+    ): Boolean =
+        validationMutex.withLock {
+            withContext(Dispatchers.IO) {
+                val cacheKey = validationCacheKey(profile)
+                val now = System.currentTimeMillis()
+                validationCache[cacheKey]?.let { cached ->
+                    if (!forceRefresh && now - cached.checkedAtMs <= VALIDATION_CACHE_TTL_MS) {
+                        return@withContext cached.result
+                    }
+                }
+
+                val config = dependencies.configFactory.buildPingConfig(profile)
+                var telegramSuccessCount = 0
+                var remainingTelegramChecks = TELEGRAM_VALIDATION_URLS.size
+                for (url in TELEGRAM_VALIDATION_URLS) {
+                    if (measureValidationUrl(config, url)) {
+                        telegramSuccessCount += 1
+                        if (telegramSuccessCount >= MIN_TELEGRAM_VALIDATIONS) {
+                            break
+                        }
+                    }
+                    remainingTelegramChecks -= 1
+                    if (telegramSuccessCount + remainingTelegramChecks < MIN_TELEGRAM_VALIDATIONS) {
+                        break
+                    }
+                }
+                val youtubeSuccess =
+                    telegramSuccessCount >= MIN_TELEGRAM_VALIDATIONS &&
+                        YOUTUBE_VALIDATION_URLS.any { url -> measureValidationUrl(config, url) }
+                val result = telegramSuccessCount >= MIN_TELEGRAM_VALIDATIONS && youtubeSuccess
+                validationCache[cacheKey] = ValidationCacheEntry(result, now)
+                result
+            }
+        }
+
+    private suspend fun measureValidationUrl(
+        config: String,
+        url: String,
+    ): Boolean =
+        withTimeoutOrNull(VALIDATION_TIMEOUT_MS) {
+            runCatching {
+                core.measureOutboundDelay(config, url) >= 0L
+            }.getOrDefault(false)
+        } == true
 
     private suspend fun probeProfile(profile: TunnelProfile): Long? =
         withContext(Dispatchers.IO) {
@@ -459,6 +602,8 @@ class PerdonusVpnService : VpnService() {
         sessionAccumulatedRxBytes = 0L
         sessionAccumulatedTxBytes = 0L
         consecutiveProbeFailures = 0
+        lastCurrentValidationAtMs = 0L
+        validationCache.clear()
     }
 
     private fun resetTrafficSession() {
@@ -575,12 +720,29 @@ class PerdonusVpnService : VpnService() {
 
         private const val ACTIVE_PING_INTERVAL_MS = 5_000L
         private const val AUTO_SELECTION_INTERVAL_MS = 5 * 60_000L
+        private const val CURRENT_PROFILE_VALIDATION_INTERVAL_MS = 30_000L
         private const val NOTIFICATION_UPDATE_INTERVAL_MS = 1_000L
         private const val TCP_PROBE_TIMEOUT_MS = 1_500
         private const val PROBE_CONCURRENCY = 16
         private const val VALIDATION_TIME_BUDGET_MS = 20_000L
+        private const val VALIDATION_TIMEOUT_MS = 3_000L
+        private const val VALIDATION_CACHE_TTL_MS = 60_000L
         private const val MAX_CONSECUTIVE_PROBE_FAILURES = 2
-        private const val YOUTUBE_VALIDATION_URL = "https://www.youtube.com/robots.txt"
+        private const val MIN_SWITCH_IMPROVEMENT_MS = 25L
+        private const val MIN_TELEGRAM_VALIDATIONS = 2
+        private val TELEGRAM_VALIDATION_URLS =
+            listOf(
+                "https://telegram.org/robots.txt",
+                "https://core.telegram.org/robots.txt",
+                "https://web.telegram.org/",
+                "https://t.me/",
+                "https://desktop.telegram.org/",
+            )
+        private val YOUTUBE_VALIDATION_URLS =
+            listOf(
+                "https://www.youtube.com/robots.txt",
+                "https://m.youtube.com/robots.txt",
+            )
         private val TRAFFIC_OUTBOUND_TAGS = listOf("proxy", "direct")
 
         fun start(
@@ -602,5 +764,20 @@ class PerdonusVpnService : VpnService() {
     ) {
         UPLINK("uplink"),
         DOWNLINK("downlink"),
+    }
+
+    private data class ValidationCacheEntry(
+        val result: Boolean,
+        val checkedAtMs: Long,
+    )
+
+    private fun validationCacheKey(profile: TunnelProfile): String {
+        return buildString {
+            append(profile.id)
+            append('|')
+            append(profile.host)
+            append('|')
+            append(profile.port)
+        }
     }
 }

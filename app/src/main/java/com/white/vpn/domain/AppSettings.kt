@@ -6,7 +6,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class AppSettings(
     val subscriptionUrl: String,
-    val subscriptionMode: SubscriptionMode = SubscriptionMode.MOBILE,
+    val subscriptionMode: SubscriptionMode = SubscriptionMode.AUTO,
     val selectedServerId: String = VpnServer.AUTO_ID,
     val showChannelPrompt: Boolean = true,
     val servers: List<VpnServer> = emptyList(),

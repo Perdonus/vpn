@@ -6,6 +6,7 @@ import android.net.VpnService
 import androidx.core.content.ContextCompat
 import com.white.vpn.R
 import com.white.vpn.widget.VpnToggleWidgetRenderer
+import com.white.vpn.widget.WhiteVpnTileService
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -80,6 +81,7 @@ object VpnManager {
         _state.value = state
         if (context != null && updateWidgets && shouldRefreshWidget(previousState, state)) {
             VpnToggleWidgetRenderer.updateAll(context)
+            WhiteVpnTileService.requestRefresh(context)
         }
     }
 
@@ -88,8 +90,13 @@ object VpnManager {
         newState: VpnRuntimeState,
     ): Boolean =
         previousState.status != newState.status ||
+            previousState.activeProfileId != newState.activeProfileId ||
             previousState.activeProfileName != newState.activeProfileName ||
             previousState.activePingMs != newState.activePingMs ||
+            previousState.startedAtEpochMs != newState.startedAtEpochMs ||
+            previousState.sessionRxBytes != newState.sessionRxBytes ||
+            previousState.sessionTxBytes != newState.sessionTxBytes ||
+            previousState.isAutoMode != newState.isAutoMode ||
             previousState.message != newState.message ||
             previousState.permissionIntent != newState.permissionIntent
 }

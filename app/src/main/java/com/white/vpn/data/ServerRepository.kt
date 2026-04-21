@@ -18,17 +18,22 @@ class ServerRepository(
 
     suspend fun refreshSubscription(urlOverride: String? = null): RefreshResult = withContext(Dispatchers.IO) {
         val current = settingsStore.settings.first()
-        val subscriptionUrl = urlOverride?.trim().takeUnless { it.isNullOrEmpty() } ?: current.subscriptionUrl
-        if (urlOverride != null) {
+        val subscriptionUrl = urlOverride?.trim().takeUnless { it.isNullOrEmpty() }
+        val subscriptionUrls =
+            when {
+                subscriptionUrl != null -> listOf(subscriptionUrl)
+                current.subscriptionMode == SubscriptionMode.AUTO -> current.subscriptionMode.subscriptionUrls
+                else -> listOf(current.subscriptionUrl)
+            }
+        if (subscriptionUrl != null) {
             settingsStore.setSubscriptionUrl(subscriptionUrl)
         }
 
-        val body = download(subscriptionUrl)
-        val servers = SubscriptionImporter.import(body)
+        val servers = loadServers(subscriptionUrls)
         settingsStore.replaceServers(servers)
         settingsStore.resetSelectedServerIfMissing()
         RefreshResult(
-            url = subscriptionUrl,
+            url = subscriptionUrl ?: current.subscriptionUrl,
             importedServers = servers,
         )
     }
@@ -39,8 +44,7 @@ class ServerRepository(
 
     suspend fun switchSubscriptionMode(mode: SubscriptionMode): RefreshResult = withContext(Dispatchers.IO) {
         settingsStore.setSubscriptionMode(mode)
-        val body = download(mode.subscriptionUrl)
-        val servers = SubscriptionImporter.import(body)
+        val servers = loadServers(mode.subscriptionUrls)
         settingsStore.replaceServers(servers)
         settingsStore.resetSelectedServerIfMissing()
         RefreshResult(
@@ -91,6 +95,36 @@ class ServerRepository(
         } finally {
             connection.disconnect()
         }
+    }
+
+    private fun loadServers(urls: List<String>): List<VpnServer> {
+        val imported = mutableListOf<VpnServer>()
+        var failure: Throwable? = null
+
+        urls.forEach { url ->
+            runCatching {
+                SubscriptionImporter.import(download(url))
+            }.onSuccess { servers ->
+                imported += servers
+            }.onFailure { error ->
+                failure = failure ?: error
+            }
+        }
+
+        if (imported.isEmpty()) {
+            throw (failure ?: IllegalStateException("Subscription request returned no servers"))
+        }
+
+        return imported.deduplicateServers()
+    }
+
+    private fun List<VpnServer>.deduplicateServers(): List<VpnServer> {
+        if (isEmpty()) return this
+        val unique = linkedMapOf<String, VpnServer>()
+        for (server in this) {
+            unique.putIfAbsent(server.dedupeKey(), server)
+        }
+        return unique.values.toList()
     }
 }
 

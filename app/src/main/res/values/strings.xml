@@ -8,11 +8,15 @@
     <string name="save">Сохранить</string>
     <string name="settings">Настройки</string>
     <string name="widget_toggle">WhiteVPN</string>
+    <string name="widget_info_description">Инфо-виджет WhiteVPN</string>
     <string name="widget_state_off">Выключено</string>
     <string name="widget_state_on">Включено</string>
     <string name="widget_state_connecting">Подключение</string>
     <string name="widget_state_stopping">Отключение</string>
     <string name="widget_state_selecting_server">Подбираем сервер</string>
+    <string name="widget_mode_auto">Авто</string>
+    <string name="widget_mode_manual">Ручной</string>
+    <string name="widget_tap_to_toggle">Тап для переключения</string>
     <string name="notification_channel_name">WhiteVPN</string>
     <string name="notification_stop">Остановить</string>
     <string name="notification_connecting">Подключение…</string>

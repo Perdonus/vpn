@@ -6,14 +6,14 @@ import android.content.Context
 import android.content.Intent
 import com.white.vpn.vpn.VpnManager
 
-class VpnToggleWidgetProvider : AppWidgetProvider() {
+class VpnInfoWidgetProvider : AppWidgetProvider() {
     override fun onUpdate(
         context: Context,
         appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray,
     ) {
         super.onUpdate(context, appWidgetManager, appWidgetIds)
-        VpnToggleWidgetRenderer.updateCompact(context, appWidgetManager, appWidgetIds)
+        VpnToggleWidgetRenderer.updateInfo(context, appWidgetManager, appWidgetIds)
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -34,6 +34,6 @@ class VpnToggleWidgetProvider : AppWidgetProvider() {
     }
 
     companion object {
-        const val ACTION_TOGGLE = "com.white.vpn.widget.action.TOGGLE"
+        const val ACTION_TOGGLE = VpnToggleWidgetProvider.ACTION_TOGGLE
     }
 }

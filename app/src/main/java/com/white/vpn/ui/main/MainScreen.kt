@@ -351,7 +351,7 @@ private fun SubscriptionModeToggle(
     enabled: Boolean,
     onSelect: (SubscriptionMode) -> Unit,
 ) {
-    val modes = listOf(SubscriptionMode.MOBILE, SubscriptionMode.MOBILE_2)
+    val modes = listOf(SubscriptionMode.AUTO, SubscriptionMode.MOBILE, SubscriptionMode.MOBILE_2)
 
     Surface(
         modifier =
@@ -367,7 +367,7 @@ private fun SubscriptionModeToggle(
             modifier = Modifier.fillMaxWidth().padding(6.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            modes.forEachIndexed { index, mode ->
+            modes.forEach { mode ->
                 val selected = mode == selectedMode
                 val backgroundColor by animateColorAsState(
                     targetValue = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
@@ -398,7 +398,12 @@ private fun SubscriptionModeToggle(
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
-                        text = if (index == 0) stringResource(R.string.mode_one) else stringResource(R.string.mode_two),
+                        text =
+                            when (mode) {
+                                SubscriptionMode.AUTO -> stringResource(R.string.server_auto)
+                                SubscriptionMode.MOBILE -> stringResource(R.string.mode_one)
+                                SubscriptionMode.MOBILE_2 -> stringResource(R.string.mode_two)
+                            },
                         color = contentColor,
                         style = MaterialTheme.typography.labelLarge,
                         textAlign = TextAlign.Center,

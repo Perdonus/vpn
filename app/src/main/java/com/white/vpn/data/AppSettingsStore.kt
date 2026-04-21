@@ -82,7 +82,7 @@ class AppSettingsStore(
 
     suspend fun replaceServers(servers: List<VpnServer>) {
         context.vpnDataStore.edit { preferences ->
-            preferences[Keys.ServersJson] = json.encodeToString(serversSerializer, servers)
+            preferences[Keys.ServersJson] = json.encodeToString(serversSerializer, servers.map { it.sanitizeForStorage() })
             preferences[Keys.LastSyncEpochMs] = System.currentTimeMillis()
         }
     }
@@ -96,7 +96,7 @@ class AppSettingsStore(
                     server
                 }
             }
-            preferences[Keys.ServersJson] = json.encodeToString(serversSerializer, updated)
+            preferences[Keys.ServersJson] = json.encodeToString(serversSerializer, updated.map { it.sanitizeForStorage() })
         }
     }
 
@@ -110,7 +110,7 @@ class AppSettingsStore(
                     server
                 }
             }
-            preferences[Keys.ServersJson] = json.encodeToString(serversSerializer, updated)
+            preferences[Keys.ServersJson] = json.encodeToString(serversSerializer, updated.map { it.sanitizeForStorage() })
         }
     }
 
@@ -129,6 +129,8 @@ class AppSettingsStore(
         if (raw.isNullOrBlank()) return emptyList()
         return runCatching { json.decodeFromString(serversSerializer, raw) }.getOrDefault(emptyList())
     }
+
+    private fun VpnServer.sanitizeForStorage(): VpnServer = copy(rawLink = "")
 
     private fun storedSubscriptionMode(
         storedModeId: String?,

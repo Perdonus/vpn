@@ -84,22 +84,6 @@ object XrayConfigBuilder {
 
     private fun buildInbounds(includeTun: Boolean): JsonArray =
         buildJsonArray {
-            add(
-                buildJsonObject {
-                    put("tag", JsonPrimitive("socks"))
-                    put("port", JsonPrimitive(10808))
-                    put("protocol", JsonPrimitive("socks"))
-                    put(
-                        "settings",
-                        buildJsonObject {
-                            put("auth", JsonPrimitive("noauth"))
-                            put("udp", JsonPrimitive(true))
-                            put("userLevel", JsonPrimitive(8))
-                        },
-                    )
-                    putSniffing()
-                },
-            )
             if (includeTun) {
                 add(
                     buildJsonObject {
