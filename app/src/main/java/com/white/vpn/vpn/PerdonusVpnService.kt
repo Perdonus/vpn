@@ -275,11 +275,11 @@ class PerdonusVpnService : VpnService() {
                     val probeResults = probeProfiles(profiles)
                     dependencies.profileStore.updatePings(probeResults.mapKeys { it.key.id })
 
-                    val currentProfile =
-                        activeProfile ?: run {
-                            delay(ACTIVE_PING_INTERVAL_MS)
-                            continue
-                        }
+                    val currentProfile = activeProfile
+                    if (currentProfile == null) {
+                        delay(ACTIVE_PING_INTERVAL_MS)
+                        continue
+                    }
                     if (!core.isRunning || activeProfile?.id != currentProfile.id) {
                         delay(ACTIVE_PING_INTERVAL_MS)
                         continue

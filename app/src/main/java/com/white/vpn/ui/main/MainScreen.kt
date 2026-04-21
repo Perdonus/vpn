@@ -567,7 +567,11 @@ private fun rememberUptimeLabel(
     startedAtEpochMs: Long?,
     status: TunnelStatus,
 ): String =
-    produceState(initialValue = "", startedAtEpochMs, status) {
+    produceState(
+        initialValue = "",
+        key1 = startedAtEpochMs,
+        key2 = status,
+    ) {
         if (startedAtEpochMs == null || status != TunnelStatus.CONNECTED) {
             value = ""
             return@produceState
