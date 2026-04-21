@@ -285,7 +285,7 @@ class PerdonusVpnService : VpnService() {
                         continue
                     }
 
-                    val currentPingMs = probeResults[currentProfile]
+                    val currentPingMs = probeResults.entries.firstOrNull { it.key.id == currentProfile.id }?.value
                     if (currentPingMs != null) {
                         consecutiveProbeFailures = 0
                         val now = System.currentTimeMillis()
@@ -322,10 +322,11 @@ class PerdonusVpnService : VpnService() {
                                 continue
                             }
                         }
+                        activeProfile = currentProfile.copy(lastPingMs = currentPingMs)
                         activePingMs = currentPingMs
                         publishState(
                             TunnelStatus.CONNECTED,
-                            activeProfile = currentProfile,
+                            activeProfile = activeProfile,
                             pingMs = currentPingMs,
                             startedAt = startedAtEpochMs,
                         )

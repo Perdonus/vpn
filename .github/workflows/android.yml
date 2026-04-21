@@ -59,10 +59,10 @@ jobs:
 
           if [[ ! -f ci-logs/gradle-build.log ]]; then
             echo "Gradle build log was not captured." > "$summary_file"
-          elif grep -En '(^e: file:|^e: |^FAILURE: Build failed|^\* What went wrong:|^Execution failed|^A failure occurred|^> )' ci-logs/gradle-build.log > "$summary_file"; then
+          elif grep -En '(^e: file:|^e: |^FAILURE: Build failed|^\* What went wrong:|^Execution failed|^A failure occurred|^Caused by: |^Exception is:|^> (Task .* FAILED|Could not|A problem occurred|Execution failed))' ci-logs/gradle-build.log > "$summary_file"; then
             true
           else
-            tail -n 200 ci-logs/gradle-build.log > "$summary_file"
+            tail -n 300 ci-logs/gradle-build.log > "$summary_file"
           fi
 
           first_error="$(head -n 1 "$summary_file" || true)"
