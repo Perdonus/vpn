@@ -44,7 +44,7 @@ class AppSettingsStore(
             }
             .map { preferences ->
                 AppSettings(
-                    subscriptionUrl = preferences[Keys.SubscriptionUrl] ?: AppDefaults.DEFAULT_SUBSCRIPTION_URL,
+                    subscriptionUrl = storedSubscriptionUrl(preferences[Keys.SubscriptionUrl]),
                     selectedServerId = preferences[Keys.SelectedServerId] ?: VpnServer.AUTO_ID,
                     splitTunnelMode = storedSplitTunnelMode(preferences[Keys.SplitTunnelModeId]),
                     splitTunnelPackages = preferences[Keys.SplitTunnelPackages].orEmpty().filter { it.isNotBlank() }.toSet(),
@@ -56,8 +56,7 @@ class AppSettingsStore(
 
     suspend fun setSubscriptionUrl(url: String) {
         context.vpnDataStore.edit { preferences ->
-            val normalizedUrl = url.trim().ifEmpty { AppDefaults.DEFAULT_SUBSCRIPTION_URL }
-            preferences[Keys.SubscriptionUrl] = normalizedUrl
+            preferences[Keys.SubscriptionUrl] = storedSubscriptionUrl(url)
         }
     }
 
@@ -151,6 +150,15 @@ class AppSettingsStore(
     }
 
     private fun VpnServer.sanitizeForStorage(): VpnServer = copy(rawLink = "")
+
+    private fun storedSubscriptionUrl(storedUrl: String?): String {
+        val normalizedUrl = storedUrl?.trim().orEmpty().ifEmpty { AppDefaults.DEFAULT_SUBSCRIPTION_URL }
+        return if (AppDefaults.isBundledSubscriptionUrl(normalizedUrl)) {
+            AppDefaults.DEFAULT_SUBSCRIPTION_URL
+        } else {
+            normalizedUrl
+        }
+    }
 
     private fun storedSplitTunnelMode(storedModeId: String?): SplitTunnelMode =
         storedModeId

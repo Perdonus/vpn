@@ -23,8 +23,7 @@ class ServerRepository(
         val subscriptionUrls =
             when {
                 subscriptionUrl != null -> listOf(subscriptionUrl)
-                current.subscriptionUrl.trim().ifEmpty { AppDefaults.DEFAULT_SUBSCRIPTION_URL } == AppDefaults.DEFAULT_SUBSCRIPTION_URL ->
-                    AppDefaults.DEFAULT_SUBSCRIPTION_URLS
+                AppDefaults.isBundledSubscriptionUrl(current.subscriptionUrl) -> AppDefaults.DEFAULT_SUBSCRIPTION_URLS
 
                 else -> listOf(current.subscriptionUrl)
             }
