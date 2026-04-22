@@ -2,7 +2,6 @@
     <string name="app_name">WhiteVPN</string>
     <string name="connect">Подключить</string>
     <string name="disconnect">Отключить</string>
-    <string name="server_auto">Авто</string>
     <string name="subscription_refresh">Обновить</string>
     <string name="subscription_url">URL подписки</string>
     <string name="save">Сохранить</string>
@@ -16,9 +15,6 @@
     <string name="notification_permission_required">Разреши уведомления и VPN</string>
     <string name="channel_subscribe">Подписаться на канал</string>
     <string name="channel_prompt">Подпишись на канал</string>
-    <string name="mode_title">Режимы</string>
-    <string name="mode_one">1</string>
-    <string name="mode_two">2</string>
     <string name="split_tunnel_button">Раздельное туннелирование</string>
     <string name="split_tunnel_mode_off">Выкл</string>
     <string name="split_tunnel_mode_bypass">Обход</string>

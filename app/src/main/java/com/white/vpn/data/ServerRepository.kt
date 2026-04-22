@@ -23,7 +23,9 @@ class ServerRepository(
         val subscriptionUrls =
             when {
                 subscriptionUrl != null -> listOf(subscriptionUrl)
-                current.subscriptionMode == SubscriptionMode.AUTO -> current.subscriptionMode.subscriptionUrls
+                current.subscriptionUrl.trim().ifEmpty { AppDefaults.DEFAULT_SUBSCRIPTION_URL } == AppDefaults.DEFAULT_SUBSCRIPTION_URL ->
+                    AppDefaults.DEFAULT_SUBSCRIPTION_URLS
+
                 else -> listOf(current.subscriptionUrl)
             }
         if (subscriptionUrl != null) {
@@ -41,17 +43,6 @@ class ServerRepository(
 
     suspend fun updateSubscriptionUrl(url: String) {
         settingsStore.setSubscriptionUrl(url)
-    }
-
-    suspend fun switchSubscriptionMode(mode: SubscriptionMode): RefreshResult = withContext(Dispatchers.IO) {
-        settingsStore.setSubscriptionMode(mode)
-        val servers = loadServers(mode.subscriptionUrls)
-        settingsStore.replaceServers(servers)
-        settingsStore.resetSelectedServerIfMissing()
-        RefreshResult(
-            url = mode.subscriptionUrl,
-            importedServers = servers,
-        )
     }
 
     suspend fun selectServer(serverId: String) {

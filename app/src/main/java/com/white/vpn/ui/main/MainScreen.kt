@@ -59,7 +59,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.white.vpn.R
-import com.white.vpn.data.SubscriptionMode
 import com.white.vpn.domain.SplitTunnelMode
 import com.white.vpn.vpn.TunnelStatus
 import kotlinx.coroutines.delay
@@ -71,7 +70,6 @@ fun MainScreen(
     state: MainUiState,
     onToggleConnection: () -> Unit,
     onOpenChannel: () -> Unit,
-    onSelectSubscriptionMode: (SubscriptionMode) -> Unit,
     onOpenSplitTunnel: () -> Unit,
     onSelectSplitTunnelMode: (SplitTunnelMode) -> Unit,
     onToggleSplitTunnelPackage: (String) -> Unit,
@@ -215,20 +213,6 @@ fun MainScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(
-                text = stringResource(R.string.mode_title),
-                style = MaterialTheme.typography.labelLarge,
-                color = colorScheme.onSurface.copy(alpha = 0.78f),
-                modifier = Modifier.fillMaxWidth().widthIn(max = 420.dp),
-                textAlign = TextAlign.Center,
-            )
-
-            SubscriptionModeToggle(
-                selectedMode = state.settings.subscriptionMode,
-                enabled = !isBusy && !state.isRefreshing,
-                onSelect = onSelectSubscriptionMode,
-            )
-
             SplitTunnelButton(
                 enabled = !isBusy,
                 onClick = {
@@ -366,75 +350,6 @@ private fun ChannelPrompt(onOpenChannel: () -> Unit) {
                 modifier = Modifier.size(30.dp),
                 tint = Color.Unspecified,
             )
-        }
-    }
-}
-
-@Composable
-private fun SubscriptionModeToggle(
-    selectedMode: SubscriptionMode,
-    enabled: Boolean,
-    onSelect: (SubscriptionMode) -> Unit,
-) {
-    val modes = listOf(SubscriptionMode.AUTO, SubscriptionMode.MOBILE, SubscriptionMode.MOBILE_2)
-
-    Surface(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .widthIn(max = 420.dp),
-        shape = RoundedCornerShape(28.dp),
-        color = MaterialTheme.colorScheme.surface,
-        contentColor = MaterialTheme.colorScheme.onSurface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(6.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            modes.forEach { mode ->
-                val selected = mode == selectedMode
-                val backgroundColor by animateColorAsState(
-                    targetValue = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
-                    animationSpec = tween(220),
-                    label = "subscription-mode-background",
-                )
-                val contentColor by animateColorAsState(
-                    targetValue =
-                        when {
-                            selected -> MaterialTheme.colorScheme.onPrimary
-                            enabled -> MaterialTheme.colorScheme.onSurface
-                            else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.42f)
-                        },
-                    animationSpec = tween(220),
-                    label = "subscription-mode-content",
-                )
-
-                Box(
-                    modifier =
-                        Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(22.dp))
-                            .background(backgroundColor)
-                            .clickable(enabled = enabled && !selected) {
-                                onSelect(mode)
-                            }
-                            .padding(horizontal = 12.dp, vertical = 14.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text =
-                            when (mode) {
-                                SubscriptionMode.AUTO -> stringResource(R.string.server_auto)
-                                SubscriptionMode.MOBILE -> stringResource(R.string.mode_one)
-                                SubscriptionMode.MOBILE_2 -> stringResource(R.string.mode_two)
-                            },
-                        color = contentColor,
-                        style = MaterialTheme.typography.labelLarge,
-                        textAlign = TextAlign.Center,
-                    )
-                }
-            }
         }
     }
 }

@@ -92,9 +92,6 @@ class MainActivity : ComponentActivity() {
                         viewModel.dismissChannelPrompt()
                         startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(CHANNEL_URL)))
                     },
-                    onSelectSubscriptionMode = { mode ->
-                        viewModel.switchSubscriptionMode(mode)
-                    },
                     onOpenSplitTunnel = {
                         viewModel.dismissMessage()
                     },

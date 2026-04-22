@@ -45,7 +45,6 @@ class AppSettingsStore(
             .map { preferences ->
                 AppSettings(
                     subscriptionUrl = preferences[Keys.SubscriptionUrl] ?: AppDefaults.DEFAULT_SUBSCRIPTION_URL,
-                    subscriptionMode = storedSubscriptionMode(preferences[Keys.SubscriptionModeId], preferences[Keys.SubscriptionUrl]),
                     selectedServerId = preferences[Keys.SelectedServerId] ?: VpnServer.AUTO_ID,
                     splitTunnelMode = storedSplitTunnelMode(preferences[Keys.SplitTunnelModeId]),
                     splitTunnelPackages = preferences[Keys.SplitTunnelPackages].orEmpty().filter { it.isNotBlank() }.toSet(),
@@ -59,16 +58,6 @@ class AppSettingsStore(
         context.vpnDataStore.edit { preferences ->
             val normalizedUrl = url.trim().ifEmpty { AppDefaults.DEFAULT_SUBSCRIPTION_URL }
             preferences[Keys.SubscriptionUrl] = normalizedUrl
-            SubscriptionMode.fromUrl(normalizedUrl)?.let {
-                preferences[Keys.SubscriptionModeId] = it.id
-            }
-        }
-    }
-
-    suspend fun setSubscriptionMode(mode: SubscriptionMode) {
-        context.vpnDataStore.edit { preferences ->
-            preferences[Keys.SubscriptionModeId] = mode.id
-            preferences[Keys.SubscriptionUrl] = mode.subscriptionUrl
         }
     }
 
@@ -163,15 +152,6 @@ class AppSettingsStore(
 
     private fun VpnServer.sanitizeForStorage(): VpnServer = copy(rawLink = "")
 
-    private fun storedSubscriptionMode(
-        storedModeId: String?,
-        storedUrl: String?,
-    ): SubscriptionMode =
-        storedModeId
-            ?.let(SubscriptionMode::fromId)
-            ?: SubscriptionMode.fromUrl(storedUrl)
-            ?: AppDefaults.DEFAULT_SUBSCRIPTION_MODE
-
     private fun storedSplitTunnelMode(storedModeId: String?): SplitTunnelMode =
         storedModeId
             ?.let { modeId -> SplitTunnelMode.entries.firstOrNull { it.name == modeId } }
@@ -179,7 +159,6 @@ class AppSettingsStore(
 
     private object Keys {
         val SubscriptionUrl = stringPreferencesKey("subscription_url")
-        val SubscriptionModeId = stringPreferencesKey("subscription_mode_id")
         val SelectedServerId = stringPreferencesKey("selected_server_id")
         val SplitTunnelModeId = stringPreferencesKey("split_tunnel_mode_id")
         val SplitTunnelPackages = stringSetPreferencesKey("split_tunnel_packages")
