@@ -2,6 +2,7 @@ package com.white.vpn.integration
 
 import com.white.vpn.data.ServerRepository
 import com.white.vpn.domain.AppSettings
+import com.white.vpn.domain.SplitTunnelSettings
 import com.white.vpn.domain.VpnServer
 import com.white.vpn.vpn.TunnelProfile
 import com.white.vpn.vpn.TunnelProfileStore
@@ -73,6 +74,14 @@ class AppVpnDependencies(
         serverRepository.settings
             .onEach { latestSettings = it }
             .launchIn(applicationScope)
+    }
+
+    override suspend fun splitTunnelSettings(): SplitTunnelSettings {
+        val settings = currentSettings()
+        return SplitTunnelSettings(
+            mode = settings.splitTunnelMode,
+            packages = settings.splitTunnelPackages,
+        )
     }
 
     private fun currentSettings(): AppSettings {

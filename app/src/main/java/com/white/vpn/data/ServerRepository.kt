@@ -1,6 +1,7 @@
 package com.white.vpn.data
 
 import com.white.vpn.domain.AppSettings
+import com.white.vpn.domain.SplitTunnelMode
 import com.white.vpn.domain.VpnServer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -55,6 +56,14 @@ class ServerRepository(
 
     suspend fun selectServer(serverId: String) {
         settingsStore.setSelectedServerId(serverId)
+    }
+
+    suspend fun setSplitTunnelMode(mode: SplitTunnelMode) {
+        settingsStore.setSplitTunnelMode(mode)
+    }
+
+    suspend fun toggleSplitTunnelPackage(packageName: String) {
+        settingsStore.toggleSplitTunnelPackage(packageName)
     }
 
     suspend fun dismissChannelPrompt() {

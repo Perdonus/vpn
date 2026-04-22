@@ -33,7 +33,10 @@ class MainActivity : ComponentActivity() {
         val container = (application as VpnApplication).appContainer
         viewModelFactory {
             initializer {
-                MainViewModel(container.serverRepository)
+                MainViewModel(
+                    serverRepository = container.serverRepository,
+                    installedAppsRepository = container.installedAppsRepository,
+                )
             }
         }
     }
@@ -91,6 +94,15 @@ class MainActivity : ComponentActivity() {
                     },
                     onSelectSubscriptionMode = { mode ->
                         viewModel.switchSubscriptionMode(mode)
+                    },
+                    onOpenSplitTunnel = {
+                        viewModel.dismissMessage()
+                    },
+                    onSelectSplitTunnelMode = { mode ->
+                        viewModel.setSplitTunnelMode(mode)
+                    },
+                    onToggleSplitTunnelPackage = { packageName ->
+                        viewModel.toggleSplitTunnelPackage(packageName)
                     },
                 )
             }

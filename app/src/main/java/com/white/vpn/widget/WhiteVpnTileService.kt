@@ -6,6 +6,7 @@ import android.app.PendingIntent
 import android.graphics.drawable.Icon
 import android.net.VpnService
 import android.os.Build
+import android.os.SystemClock
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
 import com.white.vpn.R
@@ -21,7 +22,17 @@ class WhiteVpnTileService : TileService() {
     override fun onClick() {
         super.onClick()
 
+        if (shouldIgnoreClick()) {
+            updateTile()
+            return
+        }
+
         val state = VpnManager.stateSnapshot()
+        if (state.status == TunnelStatus.CONNECTING || state.status == TunnelStatus.STOPPING) {
+            updateTile()
+            return
+        }
+
         if (state.isRunning) {
             VpnManager.stop(this)
             updateTile()
@@ -36,6 +47,17 @@ class WhiteVpnTileService : TileService() {
 
         VpnManager.requestStart(this)
         updateTile()
+    }
+
+    private fun shouldIgnoreClick(): Boolean {
+        val now = SystemClock.elapsedRealtime()
+        synchronized(companionLock) {
+            if (now - lastClickAtElapsedMs < CLICK_DEBOUNCE_MS) {
+                return true
+            }
+            lastClickAtElapsedMs = now
+        }
+        return false
     }
 
     private fun updateTile() {
@@ -102,6 +124,11 @@ class WhiteVpnTileService : TileService() {
     }
 
     companion object {
+        private const val CLICK_DEBOUNCE_MS = 1_250L
+        private val companionLock = Any()
+        @Volatile
+        private var lastClickAtElapsedMs: Long = 0L
+
         fun requestRefresh(context: android.content.Context) {
             TileService.requestListeningState(
                 context,

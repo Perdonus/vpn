@@ -7,11 +7,7 @@
     <string name="subscription_url">URL подписки</string>
     <string name="save">Сохранить</string>
     <string name="settings">Настройки</string>
-    <string name="widget_toggle">WhiteVPN</string>
     <string name="widget_state_off">Выключено</string>
-    <string name="widget_state_on">Включено</string>
-    <string name="widget_state_connecting">Подключение</string>
-    <string name="widget_state_stopping">Отключение</string>
     <string name="notification_channel_name">WhiteVPN</string>
     <string name="notification_stop">Остановить</string>
     <string name="notification_connecting">Подключение…</string>
@@ -23,6 +19,15 @@
     <string name="mode_title">Режимы</string>
     <string name="mode_one">1</string>
     <string name="mode_two">2</string>
+    <string name="split_tunnel_button">Раздельное туннелирование</string>
+    <string name="split_tunnel_mode_off">Выкл</string>
+    <string name="split_tunnel_mode_bypass">Обход</string>
+    <string name="split_tunnel_mode_include">Вход</string>
+    <string name="split_tunnel_mode_bypass_description">Обход: выбранные приложения не будут использовать VPN.</string>
+    <string name="split_tunnel_mode_include_description">Вход: только выбранные приложения будут использовать VPN.</string>
+    <string name="split_tunnel_search_label">Поиск приложения</string>
+    <string name="split_tunnel_search_placeholder">Название или пакет</string>
+    <string name="split_tunnel_empty">Ничего не найдено</string>
     <string name="status_checking_ping">Проверяем сеть</string>
     <string name="status_ping_value">Ping %1$d ms</string>
     <string name="status_ping_unknown">Ping --</string>

@@ -5,7 +5,6 @@ import android.content.Intent
 import android.net.VpnService
 import androidx.core.content.ContextCompat
 import com.white.vpn.R
-import com.white.vpn.widget.VpnToggleWidgetRenderer
 import com.white.vpn.widget.WhiteVpnTileService
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -80,7 +79,6 @@ object VpnManager {
         val previousState = _state.value
         _state.value = state
         if (context != null && updateWidgets && shouldRefreshWidget(previousState, state)) {
-            VpnToggleWidgetRenderer.updateAll(context)
             WhiteVpnTileService.requestRefresh(context)
         }
     }

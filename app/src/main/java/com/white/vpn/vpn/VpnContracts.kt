@@ -1,6 +1,7 @@
 package com.white.vpn.vpn
 
 import android.content.Intent
+import com.white.vpn.domain.SplitTunnelSettings
 
 enum class TunnelSelectionMode {
     AUTO,
@@ -66,4 +67,5 @@ interface VpnDependencies {
     fun pingTestUrl(): String = "https://cp.cloudflare.com/generate_204"
     fun mtu(): Int = 1500
     fun dnsServers(): List<String> = listOf("1.1.1.1", "1.0.0.1")
+    suspend fun splitTunnelSettings(): SplitTunnelSettings = SplitTunnelSettings()
 }

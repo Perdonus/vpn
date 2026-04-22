@@ -2,10 +2,13 @@ package com.white.vpn.ui.main
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.white.vpn.data.InstalledAppsRepository
 import com.white.vpn.data.RefreshResult
 import com.white.vpn.data.ServerRepository
 import com.white.vpn.data.SubscriptionMode
 import com.white.vpn.domain.AppSettings
+import com.white.vpn.domain.InstalledAppInfo
+import com.white.vpn.domain.SplitTunnelMode
 import com.white.vpn.domain.VpnServer
 import com.white.vpn.vpn.VpnManager
 import com.white.vpn.vpn.VpnRuntimeState
@@ -18,9 +21,11 @@ import kotlinx.coroutines.launch
 
 class MainViewModel(
     private val serverRepository: ServerRepository,
+    private val installedAppsRepository: InstalledAppsRepository,
 ) : ViewModel() {
     private val isRefreshing = MutableStateFlow(false)
     private val message = MutableStateFlow<String?>(null)
+    private val installedApps = MutableStateFlow<List<InstalledAppInfo>>(emptyList())
 
     val uiState: StateFlow<MainUiState> =
         combine(
@@ -28,12 +33,14 @@ class MainViewModel(
             VpnManager.state,
             isRefreshing,
             message,
-        ) { settings, connection, refreshing, banner ->
+            installedApps,
+        ) { settings, connection, refreshing, banner, apps ->
             MainUiState(
                 settings = settings,
                 connection = connection,
                 isRefreshing = refreshing,
                 message = banner ?: connection.message,
+                installedApps = apps,
             )
         }.stateIn(
             scope = viewModelScope,
@@ -46,6 +53,11 @@ class MainViewModel(
             if (uiState.value.settings.servers.isEmpty()) {
                 refreshSubscription()
             }
+        }
+        viewModelScope.launch {
+            installedApps.value =
+                runCatching { installedAppsRepository.getLaunchableApps() }
+                    .getOrElse { emptyList() }
         }
     }
 
@@ -96,6 +108,21 @@ class MainViewModel(
         }
     }
 
+    fun setSplitTunnelMode(mode: SplitTunnelMode) {
+        viewModelScope.launch {
+            if (uiState.value.settings.splitTunnelMode == mode) {
+                return@launch
+            }
+            serverRepository.setSplitTunnelMode(mode)
+        }
+    }
+
+    fun toggleSplitTunnelPackage(packageName: String) {
+        viewModelScope.launch {
+            serverRepository.toggleSplitTunnelPackage(packageName)
+        }
+    }
+
     fun dismissMessage() {
         message.value = null
     }
@@ -121,6 +148,7 @@ data class MainUiState(
     val connection: VpnRuntimeState = VpnRuntimeState(),
     val isRefreshing: Boolean = false,
     val message: String? = null,
+    val installedApps: List<InstalledAppInfo> = emptyList(),
 ) {
     val servers: List<VpnServer>
         get() = settings.serversWithAuto
@@ -133,4 +161,7 @@ data class MainUiState(
 
     val manualRequestedProfileId: String?
         get() = settings.selectedServerId.takeUnless { it == VpnServer.AUTO_ID }
+
+    val splitTunnelSelectedPackages: Set<String>
+        get() = settings.splitTunnelPackages
 }

@@ -8,6 +8,7 @@ import android.os.IBinder
 import android.os.ParcelFileDescriptor
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
+import com.white.vpn.domain.SplitTunnelMode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -192,6 +193,7 @@ class PerdonusVpnService : VpnService() {
         stopCoreOnly()
 
         val runtimeConfig = dependencies.configFactory.buildRuntimeConfig(profile)
+        val splitTunnelSettings = dependencies.splitTunnelSettings()
         val builder =
             Builder()
                 .setSession(profile.displayName)
@@ -199,10 +201,7 @@ class PerdonusVpnService : VpnService() {
                 .addAddress("10.10.0.2", 30)
                 .addRoute("0.0.0.0", 0)
 
-        // Keep the app's own sockets out of the tunnel to avoid proxy loops.
-        runCatching {
-            builder.addDisallowedApplication(packageName)
-        }
+        applySplitTunnel(builder, splitTunnelSettings)
 
         dependencies.dnsServers().forEach(builder::addDnsServer)
 
@@ -229,6 +228,47 @@ class PerdonusVpnService : VpnService() {
         updateNotificationNow()
         startNotificationTicker()
         startHealthMonitoringLoop(dependencies)
+    }
+
+    private fun applySplitTunnel(
+        builder: Builder,
+        settings: com.white.vpn.domain.SplitTunnelSettings,
+    ) {
+        when (settings.mode) {
+            SplitTunnelMode.OFF -> {
+                // Keep the app's own sockets out of the tunnel to avoid proxy loops.
+                runCatching {
+                    builder.addDisallowedApplication(packageName)
+                }
+            }
+
+            SplitTunnelMode.BYPASS -> {
+                sequenceOf(packageName)
+                    .plus(settings.packages.asSequence())
+                    .map(String::trim)
+                    .filter(String::isNotEmpty)
+                    .distinct()
+                    .forEach { packageName ->
+                        runCatching {
+                            builder.addDisallowedApplication(packageName)
+                        }
+                    }
+            }
+
+            SplitTunnelMode.INCLUDE -> {
+                settings.packages
+                    .asSequence()
+                    .map(String::trim)
+                    .filter(String::isNotEmpty)
+                    .filterNot { it == packageName }
+                    .distinct()
+                    .forEach { allowedPackageName ->
+                        runCatching {
+                            builder.addAllowedApplication(allowedPackageName)
+                        }
+                    }
+            }
+        }
     }
 
     private suspend fun selectBestProfile(

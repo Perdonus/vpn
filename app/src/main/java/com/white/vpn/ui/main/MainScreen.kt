@@ -40,7 +40,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -57,6 +60,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.white.vpn.R
 import com.white.vpn.data.SubscriptionMode
+import com.white.vpn.domain.SplitTunnelMode
 import com.white.vpn.vpn.TunnelStatus
 import kotlinx.coroutines.delay
 import kotlin.math.PI
@@ -68,6 +72,9 @@ fun MainScreen(
     onToggleConnection: () -> Unit,
     onOpenChannel: () -> Unit,
     onSelectSubscriptionMode: (SubscriptionMode) -> Unit,
+    onOpenSplitTunnel: () -> Unit,
+    onSelectSplitTunnelMode: (SplitTunnelMode) -> Unit,
+    onToggleSplitTunnelPackage: (String) -> Unit,
 ) {
     val colorScheme = MaterialTheme.colorScheme
     val darkTheme = isSystemInDarkTheme()
@@ -154,6 +161,7 @@ fun MainScreen(
             TunnelStatus.ERROR -> state.message ?: stringResource(R.string.status_error_generic)
             TunnelStatus.IDLE -> ""
         }
+    var isSplitTunnelSheetOpen by rememberSaveable { mutableStateOf(false) }
 
     Box(
         modifier =
@@ -219,6 +227,23 @@ fun MainScreen(
                 selectedMode = state.settings.subscriptionMode,
                 enabled = !isBusy && !state.isRefreshing,
                 onSelect = onSelectSubscriptionMode,
+            )
+
+            SplitTunnelButton(
+                enabled = !isBusy,
+                onClick = {
+                    onOpenSplitTunnel()
+                    isSplitTunnelSheetOpen = true
+                },
+            )
+        }
+
+        if (isSplitTunnelSheetOpen) {
+            SplitTunnelSheet(
+                state = state,
+                onDismiss = { isSplitTunnelSheetOpen = false },
+                onSelectMode = onSelectSplitTunnelMode,
+                onTogglePackage = onToggleSplitTunnelPackage,
             )
         }
     }
@@ -410,6 +435,45 @@ private fun SubscriptionModeToggle(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun SplitTunnelButton(
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    Surface(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .widthIn(max = 420.dp),
+        shape = RoundedCornerShape(28.dp),
+        color = MaterialTheme.colorScheme.surface,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)),
+    ) {
+        Box(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(28.dp))
+                    .clickable(enabled = enabled, onClick = onClick)
+                    .padding(horizontal = 18.dp, vertical = 18.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = stringResource(R.string.split_tunnel_button),
+                style = MaterialTheme.typography.titleMedium,
+                textAlign = TextAlign.Center,
+                color =
+                    if (enabled) {
+                        MaterialTheme.colorScheme.onSurface
+                    } else {
+                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.42f)
+                    },
+            )
         }
     }
 }
