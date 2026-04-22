@@ -197,9 +197,7 @@ class PerdonusVpnService : VpnService() {
                 .setSession(profile.displayName)
                 .setMtu(dependencies.mtu())
                 .addAddress("10.10.0.2", 30)
-                .addAddress("fdfe:dcba:9876::2", 126)
                 .addRoute("0.0.0.0", 0)
-                .addRoute("::", 0)
 
         // Keep the app's own sockets out of the tunnel to avoid proxy loops.
         runCatching {
@@ -215,7 +213,7 @@ class PerdonusVpnService : VpnService() {
         activeProfile = profile
         activePingMs = initialPingMs ?: profile.lastPingMs
         consecutiveProbeFailures = 0
-        lastCurrentValidationAtMs = System.currentTimeMillis()
+        lastCurrentValidationAtMs = 0L
         if (!preserveSession || startedAtEpochMs == null) {
             startedAtEpochMs = System.currentTimeMillis()
             resetTrafficSession()
@@ -255,7 +253,7 @@ class PerdonusVpnService : VpnService() {
             throw IllegalStateException("No reachable VPN servers available")
         }
 
-        return validateReachableProfiles(dependencies, reachableProfiles)
+        return pickBestReachableProfile(reachableProfiles)
             ?: throw IllegalStateException("No working VPN servers available")
     }
 
@@ -291,7 +289,7 @@ class PerdonusVpnService : VpnService() {
                         val now = System.currentTimeMillis()
                         if (now - lastCurrentValidationAtMs >= CURRENT_PROFILE_VALIDATION_INTERVAL_MS) {
                             lastCurrentValidationAtMs = now
-                            val validationPassed = validateProfile(dependencies, currentProfile, forceRefresh = true)
+                            val validationPassed = validateProfile(currentProfile, forceRefresh = true)
                             if (!validationPassed) {
                                 activePingMs = null
                                 publishState(
@@ -392,7 +390,6 @@ class PerdonusVpnService : VpnService() {
 
         val bestCandidate =
             selectBestCandidateFromProbeResults(
-                dependencies = dependencies,
                 profiles = profiles,
                 probeResults = probeResults,
                 announceProgress = announceProgress,
@@ -427,7 +424,6 @@ class PerdonusVpnService : VpnService() {
     }
 
     private suspend fun selectBestCandidateFromProbeResults(
-        dependencies: VpnDependencies,
         profiles: List<TunnelProfile>,
         probeResults: Map<TunnelProfile, Long?>,
         announceProgress: Boolean,
@@ -450,10 +446,7 @@ class PerdonusVpnService : VpnService() {
             return null
         }
 
-        return validateReachableProfiles(
-            dependencies = dependencies,
-            candidates = reachableProfiles,
-        )
+        return pickBestReachableProfile(candidates = reachableProfiles)
     }
 
     private suspend fun probeProfiles(
@@ -469,24 +462,11 @@ class PerdonusVpnService : VpnService() {
         }.mapValues { (_, deferred) -> deferred.await() }
     }
 
-    private suspend fun validateReachableProfiles(
-        dependencies: VpnDependencies,
+    private suspend fun pickBestReachableProfile(
         candidates: List<Pair<TunnelProfile, Long>>,
-    ): Pair<TunnelProfile, Long>? {
-        val deadlineAt = System.currentTimeMillis() + VALIDATION_TIME_BUDGET_MS
-        candidates.forEach { (profile, pingMs) ->
-            if (System.currentTimeMillis() >= deadlineAt) {
-                return null
-            }
-            if (validateProfile(dependencies, profile)) {
-                return profile to pingMs
-            }
-        }
-        return null
-    }
+    ): Pair<TunnelProfile, Long>? = candidates.firstOrNull()
 
     private suspend fun validateProfile(
-        dependencies: VpnDependencies,
         profile: TunnelProfile,
         forceRefresh: Boolean = false,
     ): Boolean =
@@ -500,11 +480,15 @@ class PerdonusVpnService : VpnService() {
                     }
                 }
 
-                val config = dependencies.configFactory.buildPingConfig(profile)
+                if (!core.isRunning || activeProfile?.id != profile.id) {
+                    validationCache[cacheKey] = ValidationCacheEntry(false, now)
+                    return@withContext false
+                }
+
                 var telegramSuccessCount = 0
                 var remainingTelegramChecks = TELEGRAM_VALIDATION_URLS.size
                 for (url in TELEGRAM_VALIDATION_URLS) {
-                    if (measureValidationUrl(config, url)) {
+                    if (measureValidationUrl(url)) {
                         telegramSuccessCount += 1
                         if (telegramSuccessCount >= MIN_TELEGRAM_VALIDATIONS) {
                             break
@@ -517,7 +501,7 @@ class PerdonusVpnService : VpnService() {
                 }
                 val youtubeSuccess =
                     telegramSuccessCount >= MIN_TELEGRAM_VALIDATIONS &&
-                        YOUTUBE_VALIDATION_URLS.any { url -> measureValidationUrl(config, url) }
+                        YOUTUBE_VALIDATION_URLS.any { url -> measureValidationUrl(url) }
                 val result = telegramSuccessCount >= MIN_TELEGRAM_VALIDATIONS && youtubeSuccess
                 validationCache[cacheKey] = ValidationCacheEntry(result, now)
                 result
@@ -525,12 +509,11 @@ class PerdonusVpnService : VpnService() {
         }
 
     private suspend fun measureValidationUrl(
-        config: String,
         url: String,
     ): Boolean =
         withTimeoutOrNull(VALIDATION_TIMEOUT_MS) {
             runCatching {
-                core.measureOutboundDelay(config, url) >= 0L
+                core.measureCurrentDelay(url) >= 0L
             }.getOrDefault(false)
         } == true
 
@@ -721,11 +704,10 @@ class PerdonusVpnService : VpnService() {
 
         private const val ACTIVE_PING_INTERVAL_MS = 5_000L
         private const val AUTO_SELECTION_INTERVAL_MS = 5 * 60_000L
-        private const val CURRENT_PROFILE_VALIDATION_INTERVAL_MS = 30_000L
+        private const val CURRENT_PROFILE_VALIDATION_INTERVAL_MS = 5_000L
         private const val NOTIFICATION_UPDATE_INTERVAL_MS = 1_000L
         private const val TCP_PROBE_TIMEOUT_MS = 1_500
         private const val PROBE_CONCURRENCY = 16
-        private const val VALIDATION_TIME_BUDGET_MS = 20_000L
         private const val VALIDATION_TIMEOUT_MS = 3_000L
         private const val VALIDATION_CACHE_TTL_MS = 60_000L
         private const val MAX_CONSECUTIVE_PROBE_FAILURES = 2

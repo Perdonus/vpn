@@ -69,6 +69,7 @@ object XrayConfigBuilder {
                 put(
                     "dns",
                     buildJsonObject {
+                        put("queryStrategy", JsonPrimitive("UseIPv4"))
                         put(
                             "servers",
                             buildJsonArray {
@@ -249,6 +250,12 @@ object XrayConfigBuilder {
         return buildJsonObject {
             put("network", JsonPrimitive(network))
             put("security", JsonPrimitive(normalizeSecurity(server.security)))
+            put(
+                "sockopt",
+                buildJsonObject {
+                    put("domainStrategy", JsonPrimitive("UseIPv4"))
+                },
+            )
 
             when (network) {
                 "ws" -> {
@@ -398,7 +405,7 @@ object XrayConfigBuilder {
             put(
                 "settings",
                 buildJsonObject {
-                    put("domainStrategy", JsonPrimitive("UseIP"))
+                    put("domainStrategy", JsonPrimitive("UseIPv4"))
                 },
             )
         }

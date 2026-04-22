@@ -16,6 +16,7 @@ interface VpnCore {
     fun start(configJson: String, tunFd: Int)
     fun stop()
     fun measureOutboundDelay(configJson: String, testUrl: String): Long
+    fun measureCurrentDelay(testUrl: String): Long
     fun queryStats(tag: String, direction: String): Long
 }
 
@@ -44,6 +45,10 @@ class LibV2rayCore(
 
     override fun measureOutboundDelay(configJson: String, testUrl: String): Long {
         return Libv2ray.measureOutboundDelay(configJson, testUrl)
+    }
+
+    override fun measureCurrentDelay(testUrl: String): Long {
+        return controller.measureDelay(testUrl)
     }
 
     override fun queryStats(

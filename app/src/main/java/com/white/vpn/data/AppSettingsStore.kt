@@ -127,7 +127,9 @@ class AppSettingsStore(
 
     private fun decodeServers(raw: String?): List<VpnServer> {
         if (raw.isNullOrBlank()) return emptyList()
-        return runCatching { json.decodeFromString(serversSerializer, raw) }.getOrDefault(emptyList())
+        return runCatching { json.decodeFromString(serversSerializer, raw) }
+            .getOrDefault(emptyList())
+            .filterNot(VpnServer::hasIpv6Label)
     }
 
     private fun VpnServer.sanitizeForStorage(): VpnServer = copy(rawLink = "")

@@ -7,7 +7,10 @@ import java.util.LinkedHashMap
 object SubscriptionImporter {
     fun import(rawBody: String): List<VpnServer> {
         val candidates = extractCandidateLines(rawBody)
-        return candidates.mapNotNull(ShareLinkParser::parse).dedupeServers()
+        return candidates
+            .mapNotNull(ShareLinkParser::parse)
+            .filterNot(VpnServer::hasIpv6Label)
+            .dedupeServers()
     }
 
     private fun extractCandidateLines(rawBody: String): List<String> {
@@ -61,6 +64,9 @@ object SubscriptionImporter {
         return unique.values.toList()
     }
 }
+
+internal fun VpnServer.hasIpv6Label(): Boolean =
+    displayName.contains("[IPv6]", ignoreCase = true)
 
 internal fun VpnServer.dedupeKey(): String =
     listOf(
