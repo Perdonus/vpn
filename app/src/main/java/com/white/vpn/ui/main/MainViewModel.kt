@@ -56,7 +56,7 @@ class MainViewModel(
         }
         viewModelScope.launch {
             installedApps.value =
-                runCatching { installedAppsRepository.getLaunchableApps() }
+                runCatching { installedAppsRepository.getInstalledApps() }
                     .getOrElse { emptyList() }
         }
     }
