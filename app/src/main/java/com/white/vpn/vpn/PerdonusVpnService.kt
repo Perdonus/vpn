@@ -43,6 +43,7 @@ class PerdonusVpnService : VpnService() {
     private var sessionAccumulatedRxBytes: Long = 0L
     private var sessionAccumulatedTxBytes: Long = 0L
     private var consecutiveProbeFailures: Int = 0
+    private var consecutiveValidationFailures: Int = 0
     private var lastCurrentValidationAtMs: Long = 0L
 
     private var autoSelectionJob: Job? = null
@@ -114,11 +115,10 @@ class PerdonusVpnService : VpnService() {
                 return@withLock
             }
 
-            val selection = dependencies.profileStore.getSelection()
-            isAutoMode = requestedProfileId == null && selection.mode == TunnelSelectionMode.AUTO
+            isAutoMode = true
             publishState(
                 TunnelStatus.CONNECTING,
-                message = if (isAutoMode) getString(com.white.vpn.R.string.status_selecting_server) else getString(com.white.vpn.R.string.status_connecting),
+                message = getString(com.white.vpn.R.string.status_selecting_server),
             )
             VpnNotificationFactory.ensureChannel(this)
             ServiceCompat.startForeground(
@@ -135,12 +135,7 @@ class PerdonusVpnService : VpnService() {
                 return@withLock
             }
 
-            val (targetProfile, initialPingMs) =
-                when {
-                    requestedProfileId != null -> resolveRequestedProfile(dependencies, profiles, requestedProfileId)
-                    isAutoMode -> selectBestProfile(dependencies, profiles, announceProgress = true)
-                    else -> resolveManualProfile(dependencies, profiles, selection.profileId)
-                }
+            val (targetProfile, initialPingMs) = selectBestProfile(dependencies, profiles, announceProgress = true)
 
             runCatching {
                 startWithProfile(
@@ -212,6 +207,7 @@ class PerdonusVpnService : VpnService() {
         activeProfile = profile
         activePingMs = initialPingMs ?: profile.lastPingMs
         consecutiveProbeFailures = 0
+        consecutiveValidationFailures = 0
         lastCurrentValidationAtMs = 0L
         if (!preserveSession || startedAtEpochMs == null) {
             startedAtEpochMs = System.currentTimeMillis()
@@ -329,36 +325,13 @@ class PerdonusVpnService : VpnService() {
                         val now = System.currentTimeMillis()
                         if (now - lastCurrentValidationAtMs >= CURRENT_PROFILE_VALIDATION_INTERVAL_MS) {
                             lastCurrentValidationAtMs = now
-                            val validationPassed = validateProfile(currentProfile, forceRefresh = true)
-                            if (!validationPassed) {
-                                activePingMs = null
-                                publishState(
-                                    if (isAutoMode) TunnelStatus.CONNECTING else TunnelStatus.CONNECTED,
-                                    activeProfile = currentProfile,
-                                    pingMs = null,
-                                    startedAt = startedAtEpochMs,
-                                    message =
-                                        if (isAutoMode) {
-                                            getString(com.white.vpn.R.string.status_selecting_server)
-                                        } else {
-                                            getString(com.white.vpn.R.string.status_ping_unknown)
-                                        },
-                                )
-                                updateNotificationNow()
-                                if (isAutoMode) {
-                                    lastFullSelectionAtMs = now
-                                    maybeSwitchToBestProfile(
-                                        dependencies = dependencies,
-                                        profiles = profiles,
-                                        probeResults = probeResults,
-                                        announceProgress = false,
-                                        currentPingMs = currentPingMs,
-                                        forceSwitch = true,
-                                    )
+                            val validationPassed = validateProfile(currentProfile)
+                            consecutiveValidationFailures =
+                                if (validationPassed) {
+                                    0
+                                } else {
+                                    consecutiveValidationFailures + 1
                                 }
-                                delay(ACTIVE_PING_INTERVAL_MS)
-                                continue
-                            }
                         }
                         activeProfile = currentProfile.copy(lastPingMs = currentPingMs)
                         activePingMs = currentPingMs
@@ -369,8 +342,12 @@ class PerdonusVpnService : VpnService() {
                             startedAt = startedAtEpochMs,
                         )
                         updateNotificationNow()
-                        if (isAutoMode && System.currentTimeMillis() - lastFullSelectionAtMs >= AUTO_SELECTION_INTERVAL_MS) {
+                        val shouldReselectByTime = System.currentTimeMillis() - lastFullSelectionAtMs >= AUTO_SELECTION_INTERVAL_MS
+                        val shouldReselectByValidation = consecutiveValidationFailures >= MAX_CONSECUTIVE_VALIDATION_FAILURES
+                        if (isAutoMode && (shouldReselectByTime || shouldReselectByValidation)) {
                             lastFullSelectionAtMs = System.currentTimeMillis()
+                            val preferValidatedCandidate = shouldReselectByValidation
+                            consecutiveValidationFailures = 0
                             maybeSwitchToBestProfile(
                                 dependencies = dependencies,
                                 profiles = profiles,
@@ -378,6 +355,7 @@ class PerdonusVpnService : VpnService() {
                                 announceProgress = false,
                                 currentPingMs = currentPingMs,
                                 forceSwitch = false,
+                                preferValidatedCandidate = preferValidatedCandidate,
                             )
                         }
                         delay(ACTIVE_PING_INTERVAL_MS)
@@ -385,23 +363,9 @@ class PerdonusVpnService : VpnService() {
                     }
 
                     consecutiveProbeFailures += 1
-                    activePingMs = null
-                    publishState(
-                        if (isAutoMode) TunnelStatus.CONNECTING else TunnelStatus.CONNECTED,
-                        activeProfile = currentProfile,
-                        pingMs = null,
-                        startedAt = startedAtEpochMs,
-                        message =
-                            if (isAutoMode) {
-                                getString(com.white.vpn.R.string.status_selecting_server)
-                            } else {
-                                getString(com.white.vpn.R.string.status_ping_unknown)
-                            },
-                    )
-                    updateNotificationNow()
-
                     if (isAutoMode && consecutiveProbeFailures >= MAX_CONSECUTIVE_PROBE_FAILURES) {
                         lastFullSelectionAtMs = System.currentTimeMillis()
+                        consecutiveValidationFailures = 0
                         maybeSwitchToBestProfile(
                             dependencies = dependencies,
                             profiles = profiles,
@@ -409,6 +373,7 @@ class PerdonusVpnService : VpnService() {
                             announceProgress = false,
                             currentPingMs = null,
                             forceSwitch = true,
+                            preferValidatedCandidate = true,
                         )
                     }
                     delay(ACTIVE_PING_INTERVAL_MS)
@@ -423,17 +388,27 @@ class PerdonusVpnService : VpnService() {
         announceProgress: Boolean,
         currentPingMs: Long?,
         forceSwitch: Boolean,
+        preferValidatedCandidate: Boolean,
     ) {
         if (!isAutoMode) return
         val currentProfile = activeProfile ?: return
         if (profiles.isEmpty() || !core.isRunning || activeProfile?.id != currentProfile.id) return
 
         val bestCandidate =
-            selectBestCandidateFromProbeResults(
-                profiles = profiles,
-                probeResults = probeResults,
-                announceProgress = announceProgress,
-            ) ?: return
+            if (preferValidatedCandidate) {
+                selectBestValidatedCandidate(
+                    profiles = profiles,
+                    probeResults = probeResults,
+                    announceProgress = announceProgress,
+                    excludeProfileId = currentProfile.id,
+                )
+            } else {
+                selectBestCandidateFromProbeResults(
+                    profiles = profiles,
+                    probeResults = probeResults,
+                    announceProgress = announceProgress,
+                )
+            } ?: return
         val (bestProfile, bestPingMs) = bestCandidate
         if (bestProfile.id == currentProfile.id) {
             activePingMs = bestPingMs ?: activePingMs
@@ -489,6 +464,38 @@ class PerdonusVpnService : VpnService() {
         return pickBestReachableProfile(candidates = reachableProfiles)
     }
 
+    private suspend fun selectBestValidatedCandidate(
+        profiles: List<TunnelProfile>,
+        probeResults: Map<TunnelProfile, Long?>,
+        announceProgress: Boolean,
+        excludeProfileId: String,
+    ): Pair<TunnelProfile, Long?>? {
+        if (profiles.isEmpty()) return null
+        if (announceProgress) {
+            publishState(
+                TunnelStatus.CONNECTING,
+                message = getString(com.white.vpn.R.string.status_selecting_server),
+            )
+            updateNotificationNow()
+        }
+
+        val reachableProfiles =
+            probeResults.entries
+                .mapNotNull { (profile, pingMs) -> pingMs?.let { profile to it } }
+                .filterNot { (profile, _) -> profile.id == excludeProfileId }
+                .sortedBy { it.second }
+
+        if (reachableProfiles.isEmpty()) {
+            return selectBestCandidateFromProbeResults(
+                profiles = profiles,
+                probeResults = probeResults,
+                announceProgress = false,
+            )
+        }
+
+        return reachableProfiles.firstOrNull()
+    }
+
     private suspend fun probeProfiles(
         profiles: List<TunnelProfile>,
     ): Map<TunnelProfile, Long?> = supervisorScope {
@@ -508,14 +515,13 @@ class PerdonusVpnService : VpnService() {
 
     private suspend fun validateProfile(
         profile: TunnelProfile,
-        forceRefresh: Boolean = false,
     ): Boolean =
         validationMutex.withLock {
             withContext(Dispatchers.IO) {
                 val cacheKey = validationCacheKey(profile)
                 val now = System.currentTimeMillis()
                 validationCache[cacheKey]?.let { cached ->
-                    if (!forceRefresh && now - cached.checkedAtMs <= VALIDATION_CACHE_TTL_MS) {
+                    if (now - cached.checkedAtMs <= VALIDATION_CACHE_TTL_MS) {
                         return@withContext cached.result
                     }
                 }
@@ -526,7 +532,6 @@ class PerdonusVpnService : VpnService() {
                 }
 
                 var telegramSuccessCount = 0
-                var remainingTelegramChecks = TELEGRAM_VALIDATION_URLS.size
                 for (url in TELEGRAM_VALIDATION_URLS) {
                     if (measureValidationUrl(url)) {
                         telegramSuccessCount += 1
@@ -534,15 +539,8 @@ class PerdonusVpnService : VpnService() {
                             break
                         }
                     }
-                    remainingTelegramChecks -= 1
-                    if (telegramSuccessCount + remainingTelegramChecks < MIN_TELEGRAM_VALIDATIONS) {
-                        break
-                    }
                 }
-                val youtubeSuccess =
-                    telegramSuccessCount >= MIN_TELEGRAM_VALIDATIONS &&
-                        YOUTUBE_VALIDATION_URLS.any { url -> measureValidationUrl(url) }
-                val result = telegramSuccessCount >= MIN_TELEGRAM_VALIDATIONS && youtubeSuccess
+                val result = telegramSuccessCount >= MIN_TELEGRAM_VALIDATIONS
                 validationCache[cacheKey] = ValidationCacheEntry(result, now)
                 result
             }
@@ -744,15 +742,16 @@ class PerdonusVpnService : VpnService() {
 
         private const val ACTIVE_PING_INTERVAL_MS = 5_000L
         private const val AUTO_SELECTION_INTERVAL_MS = 5 * 60_000L
-        private const val CURRENT_PROFILE_VALIDATION_INTERVAL_MS = 5_000L
+        private const val CURRENT_PROFILE_VALIDATION_INTERVAL_MS = 60_000L
         private const val NOTIFICATION_UPDATE_INTERVAL_MS = 1_000L
         private const val TCP_PROBE_TIMEOUT_MS = 1_500
         private const val PROBE_CONCURRENCY = 16
         private const val VALIDATION_TIMEOUT_MS = 3_000L
         private const val VALIDATION_CACHE_TTL_MS = 60_000L
-        private const val MAX_CONSECUTIVE_PROBE_FAILURES = 2
+        private const val MAX_CONSECUTIVE_PROBE_FAILURES = 3
+        private const val MAX_CONSECUTIVE_VALIDATION_FAILURES = 3
         private const val MIN_SWITCH_IMPROVEMENT_MS = 25L
-        private const val MIN_TELEGRAM_VALIDATIONS = 2
+        private const val MIN_TELEGRAM_VALIDATIONS = 1
         private val TELEGRAM_VALIDATION_URLS =
             listOf(
                 "https://telegram.org/robots.txt",
@@ -760,11 +759,6 @@ class PerdonusVpnService : VpnService() {
                 "https://web.telegram.org/",
                 "https://t.me/",
                 "https://desktop.telegram.org/",
-            )
-        private val YOUTUBE_VALIDATION_URLS =
-            listOf(
-                "https://www.youtube.com/robots.txt",
-                "https://m.youtube.com/robots.txt",
             )
         private val TRAFFIC_OUTBOUND_TAGS = listOf("proxy", "direct")
 
